@@ -24,8 +24,8 @@ Add both `swift-tui` (for the framework + your views) and `swift-tui-swiftui`
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.23"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.0.23"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.24"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.0.24"),
 ],
 targets: [
   .executableTarget(
