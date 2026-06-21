@@ -35,6 +35,11 @@ public final class SwiftUIHostSceneHost {
   @ObservationIgnored
   var onFrameForTesting: (@MainActor () -> Void)?
 
+  /// Monotonic sequence number of the most recent committed frame, exposed for
+  /// poll-free settling by offscreen-capture tooling: snapshot once the
+  /// sequence stops advancing. `nil` before the first committed frame.
+  @_spi(Raster) public var latestFrameSequence: UInt64? { latestSemanticHostFrameSequence }
+
   public init<A: SwiftTUIRuntime.App>(
     app: A,
     descriptor: SwiftUIHostSceneDescriptor,

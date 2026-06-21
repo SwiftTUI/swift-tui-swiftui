@@ -1,4 +1,5 @@
 public import Observation
+public import CoreGraphics
 import SwiftTUIRuntime
 
 public struct SwiftUIHostSceneDescriptor: Identifiable, Hashable, Sendable {
@@ -119,5 +120,28 @@ public final class SwiftUIHostAppState<A: SwiftTUIRuntime.App> {
     for host in hosts.values {
       host.apply(style: style)
     }
+  }
+}
+
+// MARK: - Offscreen raster capture (Raster SPI)
+
+@_spi(Raster) extension SwiftUIHostAppState {
+  /// Monotonic frame sequence of the selected scene's most recent committed
+  /// frame, for poll-free settling. `nil` before the first frame.
+  public var selectedSceneFrameSequence: UInt64? {
+    currentSceneHost?.latestFrameSequence
+  }
+
+  /// Resize the selected scene's surface to `size` cells. Drives a re-render at
+  /// the new grid; await a new ``selectedSceneFrameSequence`` before capturing.
+  public func resizeSelectedScene(to size: CellSize) {
+    currentSceneHost?.resize(to: size, cellPixelSize: nil)
+  }
+
+  /// Render the selected scene's most recent committed surface to an offscreen
+  /// `CGImage` at `scale` backing pixels per point. `nil` before the first
+  /// committed frame or on a non-AppKit platform.
+  public func renderSelectedSceneToCGImage(scale: CGFloat) -> CGImage? {
+    currentSceneHost?.renderLatestSurfaceToCGImage(scale: scale)
   }
 }
