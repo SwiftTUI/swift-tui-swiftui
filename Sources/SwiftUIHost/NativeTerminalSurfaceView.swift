@@ -2,30 +2,26 @@ import CoreGraphics
 import Foundation
 import SwiftTUIRuntime
 
-private extension CGSize {
-  init(_ size: HostLengthSize) {
-    self.init(width: CGFloat(size.width), height: CGFloat(size.height))
-  }
-}
-
-private extension HostLengthSize {
-  init(_ size: CGSize) {
-    self.init(width: Double(size.width), height: Double(size.height))
-  }
-}
+// The AppKit (`NSView`) and UIKit (`UIView`) terminal surface views below share
+// all of their presentation/negotiation logic. That logic lives once in
+// `HostedSurfacePresenter` (see `HostedSurfacePresenter.swift`); each platform
+// shell here only wires platform events and applies the presenter's neutral
+// `Invalidation` results with its own AppKit/UIKit API.
 
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
   import AppKit
 
   final class NativeTerminalSurfaceView: NSView {
-    private(set) var surface: RasterSurface?
+    private let presenter = HostedSurfacePresenter()
+
+    var surface: RasterSurface? { presenter.surface }
 
     var style: SwiftUIHostTerminalStyle = .default {
       didSet {
         guard oldValue != style else {
           return
         }
-        updateMetrics()
+        applyMetricsUpdate()
         needsDisplay = true
       }
     }
@@ -33,31 +29,25 @@ private extension HostLengthSize {
     var focusPresentation: FocusPresentation = .none
     var allowsTextInput = false
     var preferredGridSize: CellSize? {
-      didSet {
-        guard oldValue != preferredGridSize else {
+      get { presenter.preferredGridSize }
+      set {
+        guard presenter.preferredGridSize != newValue else {
           return
         }
+        presenter.preferredGridSize = newValue
         invalidateNegotiatedSize()
       }
     }
-    var onResize: ((CellSize, PixelSize?) -> Void)?
+    var onResize: ((CellSize, PixelSize?) -> Void)? {
+      get { presenter.onResize }
+      set { presenter.onResize = newValue }
+    }
     var onInputEvent: ((InputEvent) -> Void)?
-
-    private var metrics = NativeTerminalMetrics(style: .default)
-    private var lastPublishedLayoutGrid: CellSize?
-    private var lastPublishedLayoutCellPixelSize: PixelSize?
-    private var lastRequestedSurfaceGrid: CellSize?
-    private var lastRequestedSurfaceCellPixelSize: PixelSize?
-    private var confirmedSlack = HostedSurfaceConfirmedSlack()
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override var intrinsicContentSize: NSSize {
-      CGSize(
-        sizeNegotiator.intrinsicContentSize(
-          noIntrinsicMetric: Double(NSView.noIntrinsicMetric)
-        )
-      )
+      presenter.intrinsicContentSize(noIntrinsicMetric: Double(NSView.noIntrinsicMetric))
     }
 
     override init(frame frameRect: NSRect) {
@@ -74,12 +64,12 @@ private extension HostLengthSize {
 
     override func layout() {
       super.layout()
-      publishGridIfNeeded()
+      presenter.publishGridIfNeeded(bounds: bounds.size, backingScale: backingScale)
     }
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
-      publishGridIfNeeded()
+      presenter.publishGridIfNeeded(bounds: bounds.size, backingScale: backingScale)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -88,9 +78,9 @@ private extension HostLengthSize {
         return
       }
       NativeRasterSurfaceRenderer.draw(
-        surface: surface,
+        surface: presenter.surface,
         style: style,
-        metrics: metrics,
+        metrics: presenter.metrics,
         bounds: bounds,
         dirtyRect: dirtyRect,
         context: context
@@ -101,16 +91,7 @@ private extension HostLengthSize {
       surface: RasterSurface?,
       damage: PresentationDamage?
     ) {
-      let previousSize = self.surface?.size
-      self.surface = surface
-      confirmedSlack.update(
-        preferredGridSize: preferredGridSize,
-        renderedGridSize: surface?.size
-      )
-      if previousSize != surface?.size {
-        invalidateNegotiatedSize()
-      }
-      invalidateSurface(previousSize: previousSize, surface: surface, damage: damage)
+      apply(presenter.present(surface: surface, damage: damage, bounds: bounds))
     }
 
     override func keyDown(with event: NSEvent) {
@@ -180,7 +161,7 @@ private extension HostLengthSize {
       for windowPoint: NSPoint
     ) -> PointerLocation {
       let local = convert(windowPoint, from: nil)
-      return metrics.pointerLocation(
+      return presenter.pointerLocation(
         for: CGPoint(x: local.x, y: local.y),
         in: bounds,
         scale: backingScale
@@ -191,10 +172,10 @@ private extension HostLengthSize {
       unsafe window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
     }
 
-    private func updateMetrics() {
-      metrics = NativeTerminalMetrics(style: style)
-      invalidateNegotiatedSize()
-      publishGridIfNeeded()
+    private func applyMetricsUpdate() {
+      apply(
+        presenter.updateMetrics(style: style, bounds: bounds.size, backingScale: backingScale)
+      )
     }
 
     func negotiatedSizeThatFits(
@@ -202,26 +183,11 @@ private extension HostLengthSize {
       proposedHeight: CGFloat?,
       preferredGridSize: CellSize?
     ) -> CGSize {
-      let negotiation = makeSizeNegotiator(preferredGridSize: preferredGridSize).negotiate(
-        proposedWidth: proposedWidth.map(Double.init),
-        proposedHeight: proposedHeight.map(Double.init)
-      )
-      publishProbeGridIfNeeded(negotiation.probeGridSize)
-      return CGSize(negotiation.size)
-    }
-
-    private var sizeNegotiator: HostedSurfaceSizeNegotiator {
-      makeSizeNegotiator(preferredGridSize: preferredGridSize)
-    }
-
-    private func makeSizeNegotiator(
-      preferredGridSize: CellSize?
-    ) -> HostedSurfaceSizeNegotiator {
-      HostedSurfaceSizeNegotiator(
-        cellSize: HostLengthSize(metrics.cellSize),
+      presenter.negotiatedSizeThatFits(
+        proposedWidth: proposedWidth,
+        proposedHeight: proposedHeight,
         preferredGridSize: preferredGridSize,
-        renderedGridSize: surface?.size,
-        confirmedSlack: confirmedSlack
+        backingScale: backingScale
       )
     }
 
@@ -230,82 +196,19 @@ private extension HostLengthSize {
       needsLayout = true
     }
 
-    private func publishGridIfNeeded() {
-      guard bounds.width > 0, bounds.height > 0 else {
-        return
+    private func apply(_ invalidation: HostedSurfacePresenter.Invalidation) {
+      if invalidation.invalidatesNegotiatedSize {
+        invalidateNegotiatedSize()
       }
-      guard preferredGridSize != nil || surface != nil else {
-        return
-      }
-
-      let grid = metrics.gridSize(for: bounds.size)
-      let cellPixelSize = metrics.cellPixelSize(scale: backingScale)
-      guard
-        grid != lastPublishedLayoutGrid
-          || cellPixelSize != lastPublishedLayoutCellPixelSize
-      else {
-        return
-      }
-
-      lastPublishedLayoutGrid = grid
-      lastPublishedLayoutCellPixelSize = cellPixelSize
-      publishSurfaceGridIfNeeded(grid, cellPixelSize: cellPixelSize)
-    }
-
-    private func publishProbeGridIfNeeded(
-      _ grid: CellSize?
-    ) {
-      guard let grid else {
-        return
-      }
-      publishSurfaceGridIfNeeded(
-        grid,
-        cellPixelSize: metrics.cellPixelSize(scale: backingScale)
-      )
-    }
-
-    private func publishSurfaceGridIfNeeded(
-      _ grid: CellSize,
-      cellPixelSize: PixelSize?
-    ) {
-      guard
-        grid != lastRequestedSurfaceGrid
-          || cellPixelSize != lastRequestedSurfaceCellPixelSize
-      else {
-        return
-      }
-
-      lastRequestedSurfaceGrid = grid
-      lastRequestedSurfaceCellPixelSize = cellPixelSize
-      onResize?(grid, cellPixelSize)
-    }
-
-    private func invalidateSurface(
-      previousSize: CellSize?,
-      surface: RasterSurface?,
-      damage: PresentationDamage?
-    ) {
-      guard let surface,
-        let damage,
-        previousSize == surface.size,
-        !damage.requiresFullTextRepaint,
-        !damage.requiresFullGraphicsReplay
-      else {
+      switch invalidation.display {
+      case .none:
+        break
+      case .full:
         needsDisplay = true
-        return
-      }
-
-      let rects = NativeRasterSurfaceRenderer.dirtyRects(
-        for: damage,
-        surface: surface,
-        metrics: metrics,
-        bounds: bounds
-      )
-      guard !rects.isEmpty else {
-        return
-      }
-      for rect in rects {
-        setNeedsDisplay(rect)
+      case .rects(let rects):
+        for rect in rects {
+          setNeedsDisplay(rect)
+        }
       }
     }
   }
@@ -313,14 +216,16 @@ private extension HostLengthSize {
   import UIKit
 
   final class NativeTerminalSurfaceView: UIView, UIKeyInput {
-    private(set) var surface: RasterSurface?
+    private let presenter = HostedSurfacePresenter()
+
+    var surface: RasterSurface? { presenter.surface }
 
     var style: SwiftUIHostTerminalStyle = .default {
       didSet {
         guard oldValue != style else {
           return
         }
-        updateMetrics()
+        applyMetricsUpdate()
         setNeedsDisplay()
       }
     }
@@ -334,22 +239,20 @@ private extension HostLengthSize {
     }
 
     var preferredGridSize: CellSize? {
-      didSet {
-        guard oldValue != preferredGridSize else {
+      get { presenter.preferredGridSize }
+      set {
+        guard presenter.preferredGridSize != newValue else {
           return
         }
+        presenter.preferredGridSize = newValue
         invalidateNegotiatedSize()
       }
     }
-    var onResize: ((CellSize, PixelSize?) -> Void)?
+    var onResize: ((CellSize, PixelSize?) -> Void)? {
+      get { presenter.onResize }
+      set { presenter.onResize = newValue }
+    }
     var onInputEvent: ((InputEvent) -> Void)?
-
-    private var metrics = NativeTerminalMetrics(style: .default)
-    private var lastPublishedLayoutGrid: CellSize?
-    private var lastPublishedLayoutCellPixelSize: PixelSize?
-    private var lastRequestedSurfaceGrid: CellSize?
-    private var lastRequestedSurfaceCellPixelSize: PixelSize?
-    private var confirmedSlack = HostedSurfaceConfirmedSlack()
 
     override init(frame: CGRect) {
       super.init(frame: frame)
@@ -365,22 +268,18 @@ private extension HostLengthSize {
 
     override var canBecomeFirstResponder: Bool { true }
     override var intrinsicContentSize: CGSize {
-      CGSize(
-        sizeNegotiator.intrinsicContentSize(
-          noIntrinsicMetric: Double(UIView.noIntrinsicMetric)
-        )
-      )
+      presenter.intrinsicContentSize(noIntrinsicMetric: Double(UIView.noIntrinsicMetric))
     }
     var hasText: Bool { false }
 
     override func layoutSubviews() {
       super.layoutSubviews()
-      publishGridIfNeeded()
+      presenter.publishGridIfNeeded(bounds: bounds.size, backingScale: backingScale)
     }
 
     override func didMoveToWindow() {
       super.didMoveToWindow()
-      publishGridIfNeeded()
+      presenter.publishGridIfNeeded(bounds: bounds.size, backingScale: backingScale)
       syncFirstResponder()
     }
 
@@ -389,9 +288,9 @@ private extension HostLengthSize {
         return
       }
       NativeRasterSurfaceRenderer.draw(
-        surface: surface,
+        surface: presenter.surface,
         style: style,
-        metrics: metrics,
+        metrics: presenter.metrics,
         bounds: bounds,
         dirtyRect: rect,
         context: context
@@ -402,16 +301,7 @@ private extension HostLengthSize {
       surface: RasterSurface?,
       damage: PresentationDamage?
     ) {
-      let previousSize = self.surface?.size
-      self.surface = surface
-      confirmedSlack.update(
-        preferredGridSize: preferredGridSize,
-        renderedGridSize: surface?.size
-      )
-      if previousSize != surface?.size {
-        invalidateNegotiatedSize()
-      }
-      invalidateSurface(previousSize: previousSize, surface: surface, damage: damage)
+      apply(presenter.present(surface: surface, damage: damage, bounds: bounds))
     }
 
     func insertText(_ text: String) {
@@ -509,7 +399,7 @@ private extension HostLengthSize {
     private func pointerLocation(
       for local: CGPoint
     ) -> PointerLocation {
-      metrics.pointerLocation(
+      presenter.pointerLocation(
         for: local,
         in: bounds,
         scale: backingScale
@@ -520,10 +410,10 @@ private extension HostLengthSize {
       window?.screen.scale ?? UIScreen.main.scale
     }
 
-    private func updateMetrics() {
-      metrics = NativeTerminalMetrics(style: style)
-      invalidateNegotiatedSize()
-      publishGridIfNeeded()
+    private func applyMetricsUpdate() {
+      apply(
+        presenter.updateMetrics(style: style, bounds: bounds.size, backingScale: backingScale)
+      )
     }
 
     func negotiatedSizeThatFits(
@@ -531,26 +421,11 @@ private extension HostLengthSize {
       proposedHeight: CGFloat?,
       preferredGridSize: CellSize?
     ) -> CGSize {
-      let negotiation = makeSizeNegotiator(preferredGridSize: preferredGridSize).negotiate(
-        proposedWidth: proposedWidth.map(Double.init),
-        proposedHeight: proposedHeight.map(Double.init)
-      )
-      publishProbeGridIfNeeded(negotiation.probeGridSize)
-      return CGSize(negotiation.size)
-    }
-
-    private var sizeNegotiator: HostedSurfaceSizeNegotiator {
-      makeSizeNegotiator(preferredGridSize: preferredGridSize)
-    }
-
-    private func makeSizeNegotiator(
-      preferredGridSize: CellSize?
-    ) -> HostedSurfaceSizeNegotiator {
-      HostedSurfaceSizeNegotiator(
-        cellSize: HostLengthSize(metrics.cellSize),
+      presenter.negotiatedSizeThatFits(
+        proposedWidth: proposedWidth,
+        proposedHeight: proposedHeight,
         preferredGridSize: preferredGridSize,
-        renderedGridSize: surface?.size,
-        confirmedSlack: confirmedSlack
+        backingScale: backingScale
       )
     }
 
@@ -559,82 +434,19 @@ private extension HostLengthSize {
       setNeedsLayout()
     }
 
-    private func publishGridIfNeeded() {
-      guard bounds.width > 0, bounds.height > 0 else {
-        return
+    private func apply(_ invalidation: HostedSurfacePresenter.Invalidation) {
+      if invalidation.invalidatesNegotiatedSize {
+        invalidateNegotiatedSize()
       }
-      guard preferredGridSize != nil || surface != nil else {
-        return
-      }
-
-      let grid = metrics.gridSize(for: bounds.size)
-      let cellPixelSize = metrics.cellPixelSize(scale: backingScale)
-      guard
-        grid != lastPublishedLayoutGrid
-          || cellPixelSize != lastPublishedLayoutCellPixelSize
-      else {
-        return
-      }
-
-      lastPublishedLayoutGrid = grid
-      lastPublishedLayoutCellPixelSize = cellPixelSize
-      publishSurfaceGridIfNeeded(grid, cellPixelSize: cellPixelSize)
-    }
-
-    private func publishProbeGridIfNeeded(
-      _ grid: CellSize?
-    ) {
-      guard let grid else {
-        return
-      }
-      publishSurfaceGridIfNeeded(
-        grid,
-        cellPixelSize: metrics.cellPixelSize(scale: backingScale)
-      )
-    }
-
-    private func publishSurfaceGridIfNeeded(
-      _ grid: CellSize,
-      cellPixelSize: PixelSize?
-    ) {
-      guard
-        grid != lastRequestedSurfaceGrid
-          || cellPixelSize != lastRequestedSurfaceCellPixelSize
-      else {
-        return
-      }
-
-      lastRequestedSurfaceGrid = grid
-      lastRequestedSurfaceCellPixelSize = cellPixelSize
-      onResize?(grid, cellPixelSize)
-    }
-
-    private func invalidateSurface(
-      previousSize: CellSize?,
-      surface: RasterSurface?,
-      damage: PresentationDamage?
-    ) {
-      guard let surface,
-        let damage,
-        previousSize == surface.size,
-        !damage.requiresFullTextRepaint,
-        !damage.requiresFullGraphicsReplay
-      else {
+      switch invalidation.display {
+      case .none:
+        break
+      case .full:
         setNeedsDisplay()
-        return
-      }
-
-      let rects = NativeRasterSurfaceRenderer.dirtyRects(
-        for: damage,
-        surface: surface,
-        metrics: metrics,
-        bounds: bounds
-      )
-      guard !rects.isEmpty else {
-        return
-      }
-      for rect in rects {
-        setNeedsDisplay(rect)
+      case .rects(let rects):
+        for rect in rects {
+          setNeedsDisplay(rect)
+        }
       }
     }
   }
