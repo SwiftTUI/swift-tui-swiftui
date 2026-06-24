@@ -79,7 +79,7 @@ import SwiftTUIRuntime
     ) -> NativePlatformColor {
       let converted = color.converted(to: .sRGB)
       return NativePlatformColor(
-        calibratedRed: CGFloat(converted.red),
+        srgbRed: CGFloat(converted.red),
         green: CGFloat(converted.green),
         blue: CGFloat(converted.blue),
         alpha: CGFloat(converted.alpha * alphaMultiplier)

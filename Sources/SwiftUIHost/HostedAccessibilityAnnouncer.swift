@@ -21,7 +21,8 @@ struct HostedAccessibilityAnnouncer: Equatable {
     let imperativeAnnouncements = imperativeAnnouncements(in: snapshot)
     let candidates = liveRegionCandidates(in: snapshot.accessibilityNodes)
     let currentLabelsByIdentity = Dictionary(
-      uniqueKeysWithValues: candidates.map { ($0.identity, $0.label) }
+      candidates.map { ($0.identity, $0.label) },
+      uniquingKeysWith: { _, latest in latest }
     )
     defer {
       previousLabelsByIdentity = currentLabelsByIdentity
