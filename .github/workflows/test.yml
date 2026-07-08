@@ -1,0 +1,73 @@
+name: Test
+
+# Remote verification of this repo's public contract: SwiftUIHost builds from
+# a fresh clone with native tools only, resolving swift-tui through its public
+# tagged HTTPS dependency, and its test suite passes. This runs the same
+# command as the org root's @swift_tui_swiftui//:native_gate (swiftly-managed
+# `swift test`), so a red here means the org gate would be red too.
+#
+# The weekly run guards the no-push failure modes: a re-pointed upstream
+# release tag or a runner-image/toolchain change breaking resolution.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "43 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swiftui-test-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-host:
+    name: SwiftUIHost tests (macOS)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v5
+        with:
+          path: ~/.swiftly
+          key: ${{ runner.os }}-swiftly-${{ hashFiles('.swift-version') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftly-
+
+      - name: Install swiftly and Swift toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f "$HOME/.swiftly/env.sh" ]; then
+            curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg
+            installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
+            "$HOME/.swiftly/bin/swiftly" init --skip-install --quiet-shell-followup --assume-yes
+          fi
+          . "$HOME/.swiftly/env.sh"
+          hash -r
+          swift_version="$(tr -d '[:space:]' < .swift-version)"
+          swiftly install --use --assume-yes "$swift_version"
+          swiftly run swift --version
+          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$HOME/.swiftly" >> "$GITHUB_ENV"
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
+      - name: Run native gate
+        shell: bash
+        run: tools/bazel/native_gate.sh
