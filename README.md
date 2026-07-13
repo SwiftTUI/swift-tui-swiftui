@@ -4,7 +4,7 @@
 
 ![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%2015%2B%20%C2%B7%20iOS%2018%2B-1E90FF)
-![Status](https://img.shields.io/badge/status-0.1.4%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.1.5%20pre--release-DAA520)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
 
 `swift-tui-swiftui` is the native Apple-platform host for
@@ -61,8 +61,8 @@ public API, so the two are released and consumed in lockstep.
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.4"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.1.4"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.5"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.1.5"),
 ],
 targets: [
   .executableTarget(
