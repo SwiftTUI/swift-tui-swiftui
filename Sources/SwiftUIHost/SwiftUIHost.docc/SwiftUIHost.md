@@ -5,11 +5,11 @@ Embed SwiftTUI scenes inside native SwiftUI apps.
 ## Overview
 
 `SwiftUIHost` retains SwiftTUI scenes inside a native SwiftUI lifecycle. It owns
-the native surface bridge, scene switching chrome, style mapping, clipboard
-integration, accessibility overlay, and platform announcement bridge.
+the native surface bridge, scene-selection controls, style mapping, clipboard
+integration, accessibility overlay, and platform-announcement bridge.
 
-Use this product from Apple-platform apps that want SwiftTUI content inside an
-existing SwiftUI app shell.
+Use this product to add SwiftTUI content to an existing SwiftUI app on an Apple
+platform.
 
 ## Topics
 

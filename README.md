@@ -9,9 +9,9 @@
 
 `swift-tui-swiftui` is the native Apple-platform host for
 [SwiftTUI](https://swifttui.sh) — SwiftUI semantics, drawn in terminal cells. It
-wraps a SwiftTUI `App` in an ordinary SwiftUI `View`, so the same view tree, the
-same `@State`, and the same `@FocusState` you run in a terminal render inside a
-window, a sheet, or a pane of your AppKit/UIKit app.
+wraps a SwiftTUI `App` in an ordinary SwiftUI `View`. The same view tree,
+`@State`, and `@FocusState` can run in a terminal or an Apple app. The Apple app
+can show the SwiftTUI view in a window, sheet, or AppKit/UIKit pane.
 
 ```swift
 import SwiftUI
@@ -29,8 +29,8 @@ struct MyHostApp: SwiftUI.App {
 }
 ```
 
-`SwiftUIHostAppView` is a plain `View`; `SwiftUIHostAppState` starts and stops
-the runtime and exposes the live scene. That is the whole integration.
+`SwiftUIHostAppView` is a plain `View`. `SwiftUIHostAppState` starts and stops
+the runtime and exposes the live scene.
 
 ## Why use it
 
@@ -54,9 +54,9 @@ the runtime and exposes the live scene. That is the whole integration.
 ## Installation
 
 Add both `swift-tui` (the framework and your views) and `swift-tui-swiftui` (the
-host). Pin both to the **same** tag with `exact:`: the host bridges to the
-runtime's internal scene and raster surfaces rather than only its semver-stable
-public API, so the two are released and consumed in lockstep.
+host). Pin both to the **same** tag with `exact:`. The host uses the runtime's
+internal scene and raster surfaces. Thus, the two packages are released and
+consumed in lockstep.
 
 ```swift
 // Package.swift
@@ -75,9 +75,12 @@ targets: [
 ]
 ```
 
-Import `SwiftUIHost`. The consumer surface is three types: `SwiftUIHostAppView`
-(the SwiftUI `View`), `SwiftUIHostAppState` (drives the runtime; its initializer
-throws if the app declares no scenes), and `SwiftUIHostTerminalStyle` (styling).
+Import `SwiftUIHost`. The consumer surface contains three types:
+
+- `SwiftUIHostAppView` is the SwiftUI `View`.
+- `SwiftUIHostAppState` controls the runtime. Its initializer throws if the app
+  declares no scenes.
+- `SwiftUIHostTerminalStyle` controls the terminal style.
 
 ## Run the demo
 
@@ -87,11 +90,10 @@ cd swift-tui-examples
 open SwiftUIExample/SwiftUIExample.xcodeproj   # native SwiftUI host app — run the app scheme
 ```
 
-`SwiftUIExample` (the native host app above), `LayoutsSwiftUI`, and
-`three-hosts-demo` (the same source in a terminal, a SwiftUI window, and the
-browser) all live in
-[`swift-tui-examples`](https://github.com/SwiftTUI/swift-tui-examples). For a
-headless `swift run` instead of Xcode, try
+[`swift-tui-examples`](https://github.com/SwiftTUI/swift-tui-examples) contains
+`SwiftUIExample`, `LayoutsSwiftUI`, and `three-hosts-demo`. The
+This source runs in a terminal, a SwiftUI window, and a browser.
+For a headless `swift run` without Xcode, use
 `swiftly run swift run --package-path three-hosts-demo three-hosts-demo`.
 
 ## Requirements
@@ -99,14 +101,14 @@ headless `swift run` instead of Xcode, try
 | | |
 | --- | --- |
 | Swift toolchain | Swift 6.3 (`swift-tools-version: 6.3`) |
-| Platforms | macOS 15+, iOS 18+ — imports SwiftUI/AppKit/UIKit, so it is Apple-platform only and excluded from Linux at the package-graph level |
+| Platforms | macOS 15+, iOS 18+. The package imports SwiftUI/AppKit/UIKit, so the package graph excludes it from Linux. |
 
 This package is the Apple-platform sibling of
 [`swift-tui-android`](https://github.com/SwiftTUI/swift-tui-android) (Jetpack
 Compose host) and [`swift-tui-web`](https://github.com/SwiftTUI/swift-tui-web)
-(browser host). The runtime it drives lives in
-[`swift-tui`](https://github.com/SwiftTUI/swift-tui), consumed here as a public,
-tagged HTTPS dependency on its `SwiftTUIRuntime` product.
+(browser host). The host uses the runtime in
+[`swift-tui`](https://github.com/SwiftTUI/swift-tui). This package consumes the
+`SwiftTUIRuntime` product through a public, tagged HTTPS dependency.
 
 ## Building locally
 

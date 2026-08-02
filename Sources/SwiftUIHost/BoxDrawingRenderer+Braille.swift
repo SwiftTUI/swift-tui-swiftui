@@ -14,11 +14,10 @@ import Foundation
 // `brailleSubpixels` stays file-scoped here with its only caller.
 
 extension BoxDrawingRenderer {
-  /// Bit → (column, row) layout for the 2×4 braille mosaic. Mirrors
-  /// `BrailleCell.bit(x:y:)` in `Sources/Core/BrailleCanvas.swift`. Listed
-  /// in raster order (left-to-right, top-to-bottom) so adjacent rectangles
-  /// are drawn next to each other and a fully-set mask paints the cell in
-  /// four contiguous horizontal strips.
+  /// Maps each bit to a column and row in the 2×4 braille mosaic.
+  /// This layout matches `BrailleCell.bit(x:y:)` in `Sources/Core/BrailleCanvas.swift`.
+  /// The entries use raster order from left to right and top to bottom.
+  /// Thus, adjacent rectangles connect, and a full mask paints four contiguous horizontal strips.
   fileprivate static let brailleSubpixels: [(bit: UInt8, col: Int, row: Int)] = [
     (0x01, 0, 0), (0x08, 1, 0),
     (0x02, 0, 1), (0x10, 1, 1),

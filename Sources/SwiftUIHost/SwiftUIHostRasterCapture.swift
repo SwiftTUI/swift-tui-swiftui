@@ -5,23 +5,24 @@ import SwiftTUIRuntime
   import AppKit
 #endif
 
-/// Offscreen rasterization of a hosted SwiftTUI surface, exposed under the
-/// `Raster` SPI for coordination tooling (the SwiftUI-vs-SwiftTUI layout
-/// comparison sweep). It reuses the exact on-screen path —
-/// ``NativeRasterSurfaceRenderer/draw(surface:style:metrics:bounds:dirtyRect:context:)``
-/// — so the captured bitmap equals what ``NativeTerminalSurfaceView`` paints,
-/// without a window, a terminal, or a run loop driving an on-screen view.
+/// Provides offscreen rasterization of a hosted SwiftTUI surface through the `Raster` SPI.
+/// Coordination tools use this SPI to compare SwiftUI and SwiftTUI layouts.
+/// It uses the same path as the on-screen renderer:
+/// ``NativeRasterSurfaceRenderer/draw(surface:style:metrics:bounds:dirtyRect:context:)``.
+/// Thus, the captured bitmap matches the output from ``NativeTerminalSurfaceView``.
+/// The capture does not require a window, terminal, or run loop for an on-screen view.
 ///
-/// macOS/AppKit only: the renderer's text path uses `NSString.draw`, which
-/// draws into the current `NSGraphicsContext`. On non-AppKit platforms these
-/// entry points return `nil`.
+/// On macOS, the text path uses `NSString.draw` to draw into the current `NSGraphicsContext`.
+/// On non-AppKit platforms, these entry points return `nil`.
 @_spi(Raster) public enum SwiftUIHostRasterCapture {
-  /// Render `surface` into an offscreen `CGImage` at `scale` backing pixels per
-  /// point, using `style` for fonts/palette. Returns `nil` if `surface` is
-  /// `nil`, on a non-AppKit platform, or if the bitmap context can't be made.
+  /// Renders `surface` into an offscreen `CGImage` with the fonts and palette from `style`.
+  /// `scale` specifies the number of backing pixels for each point.
+  /// If `surface` is `nil`, the function returns `nil`.
+  /// On a non-AppKit platform, the function returns `nil`.
+  /// If the function cannot create the bitmap context, it returns `nil`.
   ///
-  /// The image is `cols*cellWidth*scale × rows*cellHeight*scale` pixels, where
-  /// the cell size is derived from the bundled terminal font at `style.fontSize`.
+  /// The image size is `cols*cellWidth*scale × rows*cellHeight*scale` pixels.
+  /// The bundled terminal font at `style.fontSize` determines the cell size.
   @MainActor
   public static func image(
     of surface: RasterSurface?,
@@ -85,9 +86,9 @@ import SwiftTUIRuntime
 }
 
 @_spi(Raster) extension SwiftUIHostSceneHost {
-  /// Render this host's most recent committed surface to an offscreen `CGImage`.
-  /// Returns `nil` if no frame has been committed yet (drive `start()` and await
-  /// a frame first — see ``latestFrameSequence``).
+  /// Renders the most recent committed surface of this host to an offscreen `CGImage`.
+  /// If the host has not committed a frame, this function returns `nil`.
+  /// In this case, run `start()` and wait for a frame. See ``latestFrameSequence``.
   @MainActor
   public func renderLatestSurfaceToCGImage(scale: CGFloat) -> CGImage? {
     SwiftUIHostRasterCapture.image(of: latestSurface, style: style, scale: scale)

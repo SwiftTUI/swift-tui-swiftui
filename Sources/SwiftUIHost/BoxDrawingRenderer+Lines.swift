@@ -219,9 +219,9 @@ extension BoxDrawingRenderer {
     }
   }
 
-  /// Fills a half-stroke from the cell's centre to the named edge. The
-  /// stroke extends slightly past the centre by `thickness/2` so adjacent
-  /// directions form a clean butt join through the centre point.
+  /// Fills a half-stroke from the cell center to the specified edge.
+  /// The stroke extends past the center by `thickness/2`.
+  /// Thus, adjacent directions make a clean butt joint through the center point.
   fileprivate static func drawHalfStroke(
     weight: LineWeight,
     direction: Direction,

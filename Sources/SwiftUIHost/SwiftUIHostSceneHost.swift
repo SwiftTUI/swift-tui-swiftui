@@ -30,14 +30,14 @@ public final class SwiftUIHostSceneHost {
   @ObservationIgnored
   private var latestSemanticHostFrameSequence: UInt64?
 
-  /// Test-only hook fired after every applied frame, so a test can await a
-  /// frame condition on a poll-free signal instead of polling under a timeout.
+  /// A test-only hook that fires after each applied frame.
+  /// A test can wait for this signal instead of polling with a timeout.
   @ObservationIgnored
   var onFrameForTesting: (@MainActor () -> Void)?
 
-  /// Monotonic sequence number of the most recent committed frame, exposed for
-  /// poll-free settling by offscreen-capture tooling: snapshot once the
-  /// sequence stops advancing. `nil` before the first committed frame.
+  /// The monotonic sequence number of the most recent committed frame.
+  /// Offscreen capture tools use this number to detect a settled frame without polling.
+  /// Capture a snapshot after the sequence stops. The value is `nil` before the first committed frame.
   @_spi(Raster) public var latestFrameSequence: UInt64? { latestSemanticHostFrameSequence }
 
   public init<A: SwiftTUIRuntime.App>(

@@ -1,28 +1,27 @@
 import CoreText
 import Foundation
 
-/// Bundled terminal fonts shipped with `SwiftUIHost`.
+/// The bundled terminal fonts that ship with `SwiftUIHost`.
 ///
-/// The TTF files in `Resources/` are registered with Core Text at first access
-/// using process-scoped registration, so callers do not need to add the fonts
-/// to `Info.plist` (`UIAppFonts` / `ATSApplicationFontsPath`).
+/// Core Text registers the TTF files in `Resources/` when the process first accesses them.
+/// Thus, callers do not need to add the fonts to `Info.plist` (`UIAppFonts` or `ATSApplicationFontsPath`).
 enum BundledFonts {
-  /// PostScript name of the regular face. Use this with `NSFont(name:size:)`
-  /// or `UIFont(name:size:)` after calling `registerIfNeeded()`.
+  /// The PostScript name of the regular face.
+  /// After you call `registerIfNeeded()`, use this name with `NSFont(name:size:)` or `UIFont(name:size:)`.
   static let regularPostScriptName = "AnonymiceProNFP"
 
-  /// Family name as advertised by the TTFs' `name` table. Useful when the
-  /// caller wants to set `SwiftUIHostTerminalStyle.fontFamily` explicitly.
+  /// The family name in the `name` table of the TTF files.
+  /// Use this value to set `SwiftUIHostTerminalStyle.fontFamily` explicitly.
   static let familyName = "AnonymicePro Nerd Font Propo"
 
-  /// Idempotent registration — safe to call from any thread, runs at most once.
+  /// Registers the fonts at most once and accepts calls from any thread.
   static func registerIfNeeded() {
     _ = registration
   }
 
-  /// PostScript name for a specific emphasis combination. Embedded fonts can
-  /// be flaky with `NSFontManager.convert(toHaveTrait:)` / symbolic-trait
-  /// derivation, so we resolve each face directly.
+  /// Returns the PostScript name for a specified emphasis combination.
+  /// Embedded fonts can give inconsistent results for `NSFontManager.convert(toHaveTrait:)` and symbolic-trait derivation.
+  /// Thus, this function resolves each face directly.
   static func postScriptName(forBold bold: Bool, italic: Bool) -> String {
     switch (bold, italic) {
     case (true, true):
@@ -36,8 +35,8 @@ enum BundledFonts {
     }
   }
 
-  /// Lazy, dispatch-once-equivalent registration of every bundled `.ttf`.
-  /// Errors (including "already registered") are intentionally ignored.
+  /// Registers each bundled `.ttf` one time when code first accesses this property.
+  /// The registration ignores all errors, including "already registered".
   private static let registration: Void = {
     let baseNames = [
       "AnonymiceProNerdFontPropo-Regular",

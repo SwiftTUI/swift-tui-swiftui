@@ -1,20 +1,17 @@
 import CoreGraphics
 import Foundation
 
-/// Procedural renderer for Unicode box-drawing characters (U+2500–U+257F),
-/// block elements (U+2580–U+259F), and braille patterns (U+2800–U+28FF).
+/// A procedural renderer for Unicode box-drawing characters (U+2500–U+257F), block elements (U+2580–U+259F), and braille patterns (U+2800–U+28FF).
 ///
-/// Glyphs from these blocks are designed to fill the em-square exactly and
-/// tile seamlessly between adjacent cells. Most fonts ship them at the em
-/// size, but terminal cells include extra height for descenders + leading,
-/// which produces a visible vertical gap when rendering box-drawing columns
-/// from the font. Painting them procedurally to the cell rect guarantees
-/// pixel-perfect tiling regardless of font metrics or cell dimensions.
+/// These glyphs fill the em square and connect across adjacent cells.
+/// Most fonts supply the glyphs at the em size.
+/// Terminal cells include additional height for descenders and leading.
+/// Thus, font-rendered box-drawing columns can have a visible vertical gap.
+/// Procedural drawing fills the cell rectangle without gaps for all font metrics and cell dimensions.
 ///
-/// Braille glyphs are treated as a 2×4 sub-pixel mosaic (matching
-/// `BrailleCanvas`): each set bit fills its sub-cell rectangle solid rather
-/// than drawing a font-style dot, so partial fills connect to their
-/// neighbours and `⣿` becomes pixel-identical to `█`.
+/// The renderer treats braille glyphs as a 2×4 subpixel mosaic that matches `BrailleCanvas`.
+/// Each set bit fills its subcell rectangle instead of a font-style dot.
+/// Thus, partial fills connect to their neighbors, and `⣿` is pixel-identical to `█`.
 enum BoxDrawingRenderer {
   static func canRender(_ character: Character) -> Bool {
     guard character.unicodeScalars.count == 1,
@@ -26,9 +23,10 @@ enum BoxDrawingRenderer {
     return (0x2500...0x259F).contains(value) || (0x2800...0x28FF).contains(value)
   }
 
-  /// Paints `character` into `rect` using `color`. Returns `true` if the
-  /// glyph was drawn; `false` if the renderer doesn't handle this codepoint
-  /// and the caller should fall back to font rendering.
+  /// Paints `character` into `rect` with `color`.
+  /// If the renderer supports the code point, it paints the glyph and returns `true`.
+  /// If the renderer does not support the code point, it returns `false`.
+  /// The caller can then use font rendering.
   @discardableResult
   static func draw(
     character: Character,

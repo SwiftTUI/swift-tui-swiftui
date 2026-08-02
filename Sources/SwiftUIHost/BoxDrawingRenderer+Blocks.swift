@@ -122,11 +122,11 @@ extension BoxDrawingRenderer {
     case light, medium, dark
   }
 
-  /// Fills `rect` with a 2×2 dot pattern that approximates the requested
-  /// density. Implemented as direct fills rather than a `CGPattern` so the
-  /// pattern aligns to the cell origin and tiles seamlessly between
-  /// adjacent cells. One filled cell of the 2×2 unit corresponds to 25 %
-  /// coverage; light = 1, medium = 2, dark = 3 of the four pixels.
+  /// Fills `rect` with a 2×2 dot pattern that approximates the specified density.
+  /// Uses direct fills, not a `CGPattern`.
+  /// Thus, the pattern aligns with the cell origin and tiles without a seam between adjacent cells.
+  /// One filled cell of the 2×2 unit gives 25 % coverage.
+  /// Light fills 1 pixel, medium fills 2 pixels, and dark fills 3 pixels.
   fileprivate static func drawShade(
     rect: CGRect,
     density: ShadeDensity,
