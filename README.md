@@ -113,13 +113,20 @@ Compose host) and [`swift-tui-web`](https://github.com/SwiftTUI/swift-tui-web)
 ## Building locally
 
 ```bash
-swift build              # build the SwiftUIHost module
-swift test               # run the SwiftUIHostTests suite (macOS)
+swiftly run swift build        # build the SwiftUIHost module
+swiftly run swift test         # run the SwiftUIHostTests suite (macOS)
 ```
+
+Use the pinned toolchain through `swiftly`, not bare `swift`. See
+[AGENTS.md](AGENTS.md) for the repo gate and conventions, and
+[docs/](docs/README.md) for architecture and development notes.
 
 ## Documentation & support
 
-- **Project site & live API reference:** <https://swifttui.sh/docs/documentation/>
+- **Project site & framework API reference:** <https://swifttui.sh/docs/documentation/>
+- **`SwiftUIHost` API reference:** hosted by
+  [Swift Package Index](https://swiftpackageindex.com/SwiftTUI/swift-tui-swiftui/documentation)
+  (built from this package's DocC catalog).
 - **The framework:** [`SwiftTUI/swift-tui`](https://github.com/SwiftTUI/swift-tui)
   — the authoring API, products, and platform matrix.
 - **Other hosts:** [`swift-tui-web`](https://github.com/SwiftTUI/swift-tui-web)
