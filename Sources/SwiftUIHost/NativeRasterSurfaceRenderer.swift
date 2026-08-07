@@ -206,17 +206,15 @@ enum NativeRasterSurfaceRenderer {
 
     if !drewBoxDrawing {
       let font = metrics.font(for: style.emphasis)
-      let textPoint = CGPoint(
-        x: rect.minX,
-        y: rect.minY + metrics.textOffset.y
-      )
-      let text = String(cell.character) as NSString
-      text.draw(
-        at: textPoint,
-        withAttributes: [
+      drawGlyph(
+        String(cell.character) as NSString,
+        attributes: [
           .font: font,
           .foregroundColor: color,
-        ]
+        ],
+        in: rect,
+        metrics: metrics,
+        context: context
       )
     }
 
@@ -227,6 +225,43 @@ enum NativeRasterSurfaceRenderer {
       metrics: metrics,
       context: context
     )
+  }
+
+  /// Draws a cell's glyph, fitted to the cell's span rect.
+  ///
+  /// The grid assumes every glyph advances exactly `cellSize.width` per
+  /// spanned column, but characters outside the terminal font's coverage
+  /// come from CoreText's fallback cascade with their natural — often
+  /// wider — advance. Cells paint left-to-right and incremental repaints
+  /// clip to per-cell dirty rects, so any overflow would be chopped at the
+  /// trailing cell edge. Scale such a glyph uniformly into the span
+  /// instead, the way terminal emulators fit fallback glyphs to the cell
+  /// box.
+  private static func drawGlyph(
+    _ text: NSString,
+    attributes: [NSAttributedString.Key: Any],
+    in rect: CGRect,
+    metrics: NativeTerminalMetrics,
+    context: CGContext
+  ) {
+    let naturalSize = text.size(withAttributes: attributes)
+    guard naturalSize.width > rect.width, rect.width > 0 else {
+      text.draw(
+        at: CGPoint(x: rect.minX, y: rect.minY + metrics.textOffset.y),
+        withAttributes: attributes
+      )
+      return
+    }
+
+    let scale = rect.width / naturalSize.width
+    context.saveGState()
+    context.translateBy(
+      x: rect.minX,
+      y: rect.minY + max(0, (rect.height - naturalSize.height * scale) / 2)
+    )
+    context.scaleBy(x: scale, y: scale)
+    text.draw(at: .zero, withAttributes: attributes)
+    context.restoreGState()
   }
 
   private static func drawLineDecorations(
