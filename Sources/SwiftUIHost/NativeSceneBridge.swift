@@ -31,6 +31,14 @@ final class NativeSceneBridge {
   ) {
     self.session = session
     self.surface = surface
+    // Publish the pointer paradigm before the first layout: the surface is
+    // constructed as `.cellOnly` (the desktop default), so without this a
+    // touch platform would render its first frame unable to pan.
+    lastPointerInputCapabilities = Self.pointerInputCapabilities(for: lastCellPixelSize)
+    surface.updateSurfaceCapabilities(
+      cellPixelSize: lastCellPixelSize,
+      pointerInputCapabilities: lastPointerInputCapabilities
+    )
     syncSessionStyle()
   }
 
@@ -98,11 +106,28 @@ final class NativeSceneBridge {
     session?.requestSurfaceRefresh()
   }
 
+  /// Whether this platform scrolls by dragging content directly.
+  ///
+  /// Touch platforms do; the desktop does not, and there a press-drag over a
+  /// scroll view is an ordinary click-drag. The split follows the same
+  /// UIKit/AppKit line every other platform-divergent behavior in this host
+  /// uses, and Catalyst counts as desktop because it is driven by a pointer.
+  /// A host that wants the other answer — a Mac app that is really a touch
+  /// surface, say — can override it for a subtree with
+  /// `.environment(\.pointerInputCapabilities, …)`.
+  static let supportsScrollPanning: Bool = {
+    #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+      return true
+    #else
+      return false
+    #endif
+  }()
+
   private static func pointerInputCapabilities(
     for cellPixelSize: PixelSize?
   ) -> PointerInputCapabilities {
     guard let cellPixelSize else {
-      return .cellOnly
+      return PointerInputCapabilities(supportsScrollPanning: supportsScrollPanning)
     }
     return PointerInputCapabilities(
       precision: .subCell(
@@ -113,7 +138,8 @@ final class NativeSceneBridge {
           source: .reported
         )
       ),
-      supportsHover: true
+      supportsHover: true,
+      supportsScrollPanning: supportsScrollPanning
     )
   }
 

@@ -48,6 +48,14 @@ func bridge_forwards_resize_and_style_updates() async throws {
 
   bridge.attach(session: session, surface: surface)
 
+  // The pointer paradigm is published at attach, before any layout: the
+  // surface is built `.cellOnly`, so a touch platform must not spend its
+  // first frame unable to pan.
+  #expect(
+    surface.pointerInputCapabilities.supportsScrollPanning
+      == NativeSceneBridge.supportsScrollPanning
+  )
+
   _ = try await bridge.startSession()
   #expect(session.startCount == 1)
   #expect(session.refreshCount == 1)
@@ -65,7 +73,8 @@ func bridge_forwards_resize_and_style_updates() async throws {
           source: .nativePixels,
           metrics: .init(width: 8, height: 16, source: .reported)
         ),
-        supportsHover: true
+        supportsHover: true,
+        supportsScrollPanning: NativeSceneBridge.supportsScrollPanning
       ))
   #expect(session.refreshCount == 2)
 
@@ -99,6 +108,22 @@ func bridge_forwards_resize_and_style_updates() async throws {
 
   bridge.stopSession()
   #expect(session.stopCount == 1)
+}
+
+/// Pins the paradigm itself, not just that the bridge forwards it: touch
+/// platforms scroll by dragging content directly, desktop pointers do not.
+/// Catalyst is desktop — it is driven by a pointer even though it is UIKit.
+@Test
+func scroll_panning_follows_the_platform_pointing_device() {
+  #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+    #expect(
+      NativeSceneBridge.supportsScrollPanning,
+      "touch platforms pan a scroll view by dragging its content")
+  #else
+    #expect(
+      !NativeSceneBridge.supportsScrollPanning,
+      "on a desktop pointer a press-drag over a scroll view is a click-drag")
+  #endif
 }
 
 @MainActor

@@ -47,7 +47,9 @@ the runtime and exposes the live scene.
 - **Native input, already bridged.** Keyboard, pointer, clipboard, and
   VoiceOver/UIKit accessibility are connected between AppKit/UIKit and the
   SwiftTUI runtime, and the terminal font is bundled — which means the embedded
-  surface behaves like the rest of your app on day one.
+  surface behaves like the rest of your app on day one. Scrolling follows the
+  platform: on iOS a scroll view pans when you drag it, on macOS it does not,
+  because there a press-drag is a click-drag.
 - **Styled to match your app.** `SwiftUIHostTerminalStyle` controls font size,
   palette, theme, and cursor, which means the hosted surface inherits your app's
   look instead of standing out as a console.
