@@ -115,7 +115,10 @@ final class NativeSceneBridge {
   /// A host that wants the other answer — a Mac app that is really a touch
   /// surface, say — can override it for a subtree with
   /// `.environment(\.pointerInputCapabilities, …)`.
-  static let supportsScrollPanning: Bool = {
+  /// `nonisolated` because it is a compile-time platform fact, not bridge
+  /// state: callers that are not on the main actor (the platform-parity test)
+  /// have to be able to read it.
+  nonisolated static let supportsScrollPanning: Bool = {
     #if canImport(UIKit) && !targetEnvironment(macCatalyst)
       return true
     #else
