@@ -16,7 +16,7 @@ macOS 15+ / iOS 18+.
 ```bash
 swiftly run swift build        # build SwiftUIHost
 swiftly run swift test         # run SwiftUIHostTests (macOS)
-tools/bazel/native_gate.sh     # the repo gate CI runs
+Scripts/native_gate.sh     # the repo gate CI runs
 ```
 
 Do not run builds or tests with bare `swift` or `xcrun swift` — use

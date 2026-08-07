@@ -3,7 +3,7 @@ name: Test
 # Remote verification of this repo's public contract: SwiftUIHost builds from
 # a fresh clone with native tools only, resolving swift-tui through its public
 # tagged HTTPS dependency, and its test suite passes. This runs the same
-# command as the org root's @swift_tui_swiftui//:native_gate (swiftly-managed
+# command as the org root's //:swift_tui_swiftui_native_gate (swiftly-managed
 # `swift test`), so a red here means the org gate would be red too.
 #
 # The weekly run guards the no-push failure modes: a re-pointed upstream
@@ -76,4 +76,4 @@ jobs:
 
       - name: Run native gate
         shell: bash
-        run: tools/bazel/native_gate.sh
+        run: Scripts/native_gate.sh

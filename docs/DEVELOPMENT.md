@@ -8,7 +8,7 @@ package graph excludes it from Linux.
 
 ## Gate
 
-`tools/bazel/native_gate.sh` is the repo gate CI runs: it prefers
+`Scripts/native_gate.sh` is the repo gate CI runs: it prefers
 `swiftly run swift test` when `swiftly` is available. CI provisions the
 pinned toolchain the same way (see `.github/workflows/test.yml`).
 
