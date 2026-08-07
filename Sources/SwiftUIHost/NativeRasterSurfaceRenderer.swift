@@ -205,13 +205,10 @@ enum NativeRasterSurfaceRenderer {
       )
 
     if !drewBoxDrawing {
-      let font = metrics.font(for: style.emphasis)
       drawGlyph(
-        String(cell.character) as NSString,
-        attributes: [
-          .font: font,
-          .foregroundColor: color,
-        ],
+        cell.character,
+        emphasis: style.emphasis,
+        color: color,
         in: rect,
         metrics: metrics,
         context: context
@@ -236,15 +233,22 @@ enum NativeRasterSurfaceRenderer {
   /// clip to per-cell dirty rects, so any overflow would be chopped at the
   /// trailing cell edge. Scale such a glyph uniformly into the span
   /// instead, the way terminal emulators fit fallback glyphs to the cell
-  /// box.
+  /// box. The fit decision reads the metrics' memoized glyph size, so the
+  /// per-cell measurement cost is paid once per (character, emphasis).
   private static func drawGlyph(
-    _ text: NSString,
-    attributes: [NSAttributedString.Key: Any],
+    _ character: Character,
+    emphasis: SwiftTUIRuntime.TextStyle.TextEmphasis,
+    color: NativePlatformColor,
     in rect: CGRect,
     metrics: NativeTerminalMetrics,
     context: CGContext
   ) {
-    let naturalSize = text.size(withAttributes: attributes)
+    let text = String(character) as NSString
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: metrics.font(for: emphasis),
+      .foregroundColor: color,
+    ]
+    let naturalSize = metrics.naturalGlyphSize(for: character, emphasis: emphasis)
     guard naturalSize.width > rect.width, rect.width > 0 else {
       text.draw(
         at: CGPoint(x: rect.minX, y: rect.minY + metrics.textOffset.y),

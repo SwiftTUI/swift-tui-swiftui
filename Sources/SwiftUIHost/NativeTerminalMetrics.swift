@@ -29,6 +29,9 @@ struct NativeTerminalMetrics {
   fileprivate let boldItalicFont: NativePlatformFont
   let cellSize: CGSize
   let textOffset: CGPoint
+  // Copies of one metrics value share the box deliberately: they resolve
+  // the same four fonts, so their measurements are interchangeable.
+  private let glyphSizeCache = GlyphNaturalSizeCache()
 
   init(style: SwiftUIHostTerminalStyle) {
     let baseFont = NativePlatformFont.terminalFont(style: style, emphasis: [])
@@ -98,6 +101,19 @@ struct NativeTerminalMetrics {
         y: Double(local.y * scale)
       )
     )
+  }
+
+  /// The natural (unconstrained) size of `character` in the terminal font
+  /// for `emphasis`, memoized for this metrics value's font configuration.
+  func naturalGlyphSize(
+    for character: Character,
+    emphasis: SwiftTUIRuntime.TextStyle.TextEmphasis
+  ) -> CGSize {
+    glyphSizeCache.size(for: character, emphasis: emphasis) {
+      (String(character) as NSString).size(
+        withAttributes: [.font: font(for: emphasis)]
+      )
+    }
   }
 
   func font(
