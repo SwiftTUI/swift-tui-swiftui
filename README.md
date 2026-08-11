@@ -1,6 +1,6 @@
 # SwiftTUI for SwiftUI
 
-**Embed a SwiftTUI app inside a native SwiftUI view on macOS and iOS — no `NSViewRepresentable`/`UIViewRepresentable` glue; keyboard, pointer, clipboard, and accessibility already bridged.**
+**Embed a SwiftTUI app inside a native SwiftUI view on macOS and iOS, with keyboard, pointer, clipboard, and accessibility already bridged and no `NSViewRepresentable`/`UIViewRepresentable` glue to write.**
 
 ![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%2015%2B%20%C2%B7%20iOS%2018%2B-1E90FF)
@@ -8,7 +8,7 @@
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
 
 `swift-tui-swiftui` is the native Apple-platform host for
-[SwiftTUI](https://swifttui.sh) — SwiftUI semantics, drawn in terminal cells. It
+[SwiftTUI](https://swifttui.sh): SwiftUI semantics, drawn in terminal cells. It
 wraps a SwiftTUI `App` in an ordinary SwiftUI `View`. The same view tree,
 `@State`, and `@FocusState` can run in a terminal or an Apple app. The Apple app
 can show the SwiftTUI view in a window, sheet, or AppKit/UIKit pane.
@@ -36,22 +36,22 @@ the runtime and exposes the live scene.
 
 - **One app, five hosts.** Code authored against SwiftTUI runs unchanged as a
   terminal executable, a static WASI bundle, a localhost WebHost, a native
-  Android surface, and — through this package — a native SwiftUI surface on macOS
-  or iOS, which means you write the interface once and choose where it ships. The
+  Android surface, and, through this package, a native SwiftUI surface on macOS
+  or iOS. You write the interface once and choose where it ships. The
   [`counter`](https://github.com/SwiftTUI/swift-tui-examples/tree/main/counter)
   example renders one source in a terminal, a SwiftUI window, and the browser at
   once.
 - **Drop-in SwiftUI.** `SwiftUIHostAppView` goes straight into a `WindowGroup`, a
-  split view, or a sheet, which means no representable bridge to write and nothing
+  split view, or a sheet. There is no representable bridge to write and nothing
   to wire before your view appears.
 - **Native input, already bridged.** Keyboard, pointer, clipboard, and
   VoiceOver/UIKit accessibility are connected between AppKit/UIKit and the
-  SwiftTUI runtime, and the terminal font is bundled — which means the embedded
+  SwiftTUI runtime, and the terminal font is bundled, so the embedded
   surface behaves like the rest of your app on day one. Scrolling follows the
   platform: on iOS a scroll view pans when you drag it, on macOS it does not,
   because there a press-drag is a click-drag.
 - **Styled to match your app.** `SwiftUIHostTerminalStyle` controls font size,
-  palette, theme, and cursor, which means the hosted surface inherits your app's
+  palette, theme, and cursor, so the hosted surface inherits your app's
   look instead of standing out as a console.
 
 ## Installation
@@ -129,8 +129,8 @@ Use the pinned toolchain through `swiftly`, not bare `swift`. See
 - **`SwiftUIHost` API reference:** hosted by
   [Swift Package Index](https://swiftpackageindex.com/SwiftTUI/swift-tui-swiftui/documentation)
   (built from this package's DocC catalog).
-- **The framework:** [`SwiftTUI/swift-tui`](https://github.com/SwiftTUI/swift-tui)
-  — the authoring API, products, and platform matrix.
+- **The framework:** [`SwiftTUI/swift-tui`](https://github.com/SwiftTUI/swift-tui),
+  the authoring API, products, and platform matrix.
 - **Other hosts:** [`swift-tui-web`](https://github.com/SwiftTUI/swift-tui-web)
   (browser) and [`swift-tui-android`](https://github.com/SwiftTUI/swift-tui-android)
   (Jetpack Compose).
@@ -138,4 +138,4 @@ Use the pinned toolchain through `swiftly`, not bare `swift`. See
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT; see [LICENSE](LICENSE).

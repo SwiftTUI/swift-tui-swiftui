@@ -3,8 +3,8 @@
 ## The host boundary
 
 `SwiftUIHost` retains SwiftTUI runtime scene sessions
-(`HostedSceneSession`) and presents committed frames — raster, damage, focus,
-and accessibility — through AppKit/UIKit-backed SwiftUI views. Input,
+(`HostedSceneSession`) and presents committed frames (raster, damage, focus,
+and accessibility) through AppKit/UIKit-backed SwiftUI views. Input,
 clipboard writes, and VoiceOver focus bridge back into the runtime.
 
 ## The lockstep `@_spi` contract
