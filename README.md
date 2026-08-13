@@ -1,6 +1,6 @@
 # SwiftTUI for SwiftUI
 
-**Embed a SwiftTUI app inside a native SwiftUI view on macOS and iOS, with keyboard, pointer, clipboard, and accessibility already bridged and no `NSViewRepresentable`/`UIViewRepresentable` glue to write.**
+**Embed a SwiftTUI app inside a native SwiftUI view on macOS and iOS, with keyboard, pointer, clipboard, and a native semantic accessibility overlay and no `NSViewRepresentable`/`UIViewRepresentable` glue to write.**
 
 ![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%2015%2B%20%C2%B7%20iOS%2018%2B-1E90FF)
@@ -44,12 +44,13 @@ the runtime and exposes the live scene.
 - **Drop-in SwiftUI.** `SwiftUIHostAppView` goes straight into a `WindowGroup`, a
   split view, or a sheet. There is no representable bridge to write and nothing
   to wire before your view appears.
-- **Native input, already bridged.** Keyboard, pointer, clipboard, and
-  VoiceOver/UIKit accessibility are connected between AppKit/UIKit and the
-  SwiftTUI runtime, and the terminal font is bundled, so the embedded
-  surface behaves like the rest of your app on day one. Scrolling follows the
-  platform: on iOS a scroll view pans when you drag it, on macOS it does not,
-  because there a press-drag is a click-drag.
+- **Native input and semantic presentation.** Keyboard, pointer, and clipboard
+  events are bridged between AppKit/UIKit and the SwiftTUI runtime. The native
+  accessibility overlay presents roles, labels, hints, and runtime focus to
+  VoiceOver; assistive-origin focus and control actions are not yet routed back
+  into SwiftTUI. The terminal font is bundled. Scrolling follows the platform:
+  on iOS a scroll view pans when you drag it, while on macOS a press-drag stays
+  a click-drag.
 - **Styled to match your app.** `SwiftUIHostTerminalStyle` controls font size,
   palette, theme, and cursor, so the hosted surface inherits your app's
   look instead of standing out as a console.
