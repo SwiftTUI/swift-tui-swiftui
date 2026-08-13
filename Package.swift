@@ -47,7 +47,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
-      exact: "0.8.8"
+      exact: "0.8.9"
     )
   ],
   targets: [
