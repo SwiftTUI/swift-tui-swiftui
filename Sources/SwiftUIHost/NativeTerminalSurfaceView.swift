@@ -26,8 +26,8 @@ import SwiftTUIRuntime
       }
     }
 
-    var focusPresentation: FocusPresentation = .none
-    var allowsTextInput = false
+    private(set) var focusPresentation: FocusPresentation = .none
+    private(set) var allowsTextInput = false
     var preferredGridSize: CellSize? {
       get { presenter.preferredGridSize }
       set {
@@ -70,6 +70,7 @@ import SwiftTUIRuntime
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
       presenter.publishGridIfNeeded(bounds: bounds.size, backingScale: backingScale)
+      syncFirstResponder()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -92,6 +93,15 @@ import SwiftTUIRuntime
       damage: PresentationDamage?
     ) {
       apply(presenter.present(surface: surface, damage: damage, bounds: bounds))
+    }
+
+    func applyFocusPolicy(
+      _ focusPresentation: FocusPresentation,
+      allowsTextInput: Bool
+    ) {
+      self.focusPresentation = focusPresentation
+      self.allowsTextInput = allowsTextInput
+      syncFirstResponder()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -172,6 +182,17 @@ import SwiftTUIRuntime
       unsafe window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
     }
 
+    private func syncFirstResponder() {
+      guard let window = unsafe window else {
+        return
+      }
+      if allowsTextInput {
+        window.makeFirstResponder(self)
+      } else if window.firstResponder === self, !focusPresentation.prefersTextInput {
+        window.makeFirstResponder(nil)
+      }
+    }
+
     private func applyMetricsUpdate() {
       apply(
         presenter.updateMetrics(style: style, bounds: bounds.size, backingScale: backingScale)
@@ -230,13 +251,9 @@ import SwiftTUIRuntime
       }
     }
 
-    var focusPresentation: FocusPresentation = .none {
-      didSet { syncFirstResponder() }
-    }
-
-    var allowsTextInput = false {
-      didSet { syncFirstResponder() }
-    }
+    private(set) var focusPresentation: FocusPresentation = .none
+    private(set) var allowsTextInput = false
+    private var shouldAcquireFirstResponderAfterPrimaryPointer = false
 
     var preferredGridSize: CellSize? {
       get { presenter.preferredGridSize }
@@ -267,6 +284,21 @@ import SwiftTUIRuntime
     }
 
     override var canBecomeFirstResponder: Bool { true }
+    override var keyCommands: [UIKeyCommand]? {
+      var commands = super.keyCommands ?? []
+      for input in Self.primaryEditingKeyInputs {
+        for modifierFlags in Self.primaryEditingModifierFlags {
+          let command = UIKeyCommand(
+            input: input,
+            modifierFlags: modifierFlags,
+            action: Self.primaryEditingAction(for: input)
+          )
+          command.wantsPriorityOverSystemBehavior = true
+          commands.append(command)
+        }
+      }
+      return commands
+    }
     override var intrinsicContentSize: CGSize {
       presenter.intrinsicContentSize(noIntrinsicMetric: Double(UIView.noIntrinsicMetric))
     }
@@ -304,6 +336,15 @@ import SwiftTUIRuntime
       apply(presenter.present(surface: surface, damage: damage, bounds: bounds))
     }
 
+    func applyFocusPolicy(
+      _ focusPresentation: FocusPresentation,
+      allowsTextInput: Bool
+    ) {
+      self.focusPresentation = focusPresentation
+      self.allowsTextInput = allowsTextInput
+      syncFirstResponder()
+    }
+
     func insertText(_ text: String) {
       for character in text {
         if character == "\n" || character == "\r" {
@@ -337,11 +378,62 @@ import SwiftTUIRuntime
       }
     }
 
+    override func selectAll(_ sender: Any?) {
+      dispatchPrimaryEditingInput("a", sender: sender)
+    }
+
+    override func copy(_ sender: Any?) {
+      dispatchPrimaryEditingInput("c", sender: sender)
+    }
+
+    override func cut(_ sender: Any?) {
+      dispatchPrimaryEditingInput("x", sender: sender)
+    }
+
+    override func paste(_ sender: Any?) {
+      dispatchPrimaryEditingInput("v", sender: sender)
+    }
+
+    private func dispatchPrimaryEditingInput(_ input: String, sender: Any?) {
+      let keyCommand = sender as? UIKeyCommand
+      let modifierFlags = keyCommand?.modifierFlags ?? .command
+      guard
+        isFirstResponder,
+        Self.primaryEditingKeyInputs.contains(input),
+        let event = NativeInputMapper.inputEvent(
+          charactersIgnoringModifiers: input,
+          modifierFlags: modifierFlags
+        )
+      else {
+        return
+      }
+      onInputEvent?(event)
+    }
+
+    private static let primaryEditingKeyInputs = ["a", "c", "x", "v"]
+    private static let primaryEditingModifierFlags: [UIKeyModifierFlags] = [
+      .command,
+      .control,
+    ]
+
+    private static func primaryEditingAction(for input: String) -> Selector {
+      switch input {
+      case "a":
+        #selector(selectAll(_:))
+      case "c":
+        #selector(copy(_:))
+      case "x":
+        #selector(cut(_:))
+      default:
+        #selector(paste(_:))
+      }
+    }
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-      becomeFirstResponder()
       guard let touch = touches.first else {
         return
       }
+      shouldAcquireFirstResponderAfterPrimaryPointer = !isFirstResponder
       onInputEvent?(
         .mouse(
           .init(
@@ -370,6 +462,8 @@ import SwiftTUIRuntime
       guard let touch = touches.first else {
         return
       }
+      let shouldAcquireFirstResponder = shouldAcquireFirstResponderAfterPrimaryPointer
+      shouldAcquireFirstResponderAfterPrimaryPointer = false
       onInputEvent?(
         .mouse(
           .init(
@@ -378,10 +472,24 @@ import SwiftTUIRuntime
           )
         )
       )
+      if shouldAcquireFirstResponder {
+        becomeFirstResponder()
+      }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-      touchesEnded(touches, with: event)
+      guard let touch = touches.first else {
+        return
+      }
+      shouldAcquireFirstResponderAfterPrimaryPointer = false
+      onInputEvent?(
+        .mouse(
+          .init(
+            kind: .up(.primary),
+            location: pointerLocation(for: touch.location(in: self))
+          )
+        )
+      )
     }
 
     private func syncFirstResponder() {

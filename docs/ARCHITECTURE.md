@@ -6,6 +6,9 @@
 (`HostedSceneSession`) and presents committed frames (raster, damage, focus,
 and accessibility) through AppKit/UIKit-backed SwiftUI views. Input,
 clipboard writes, and VoiceOver focus bridge back into the runtime.
+Raster image attachments are decoded or blend-composited by content identity;
+their effective opacity is applied by AppKit/UIKit at draw placement, so an
+alpha-only frame change reuses the decoded image.
 
 ## The lockstep `@_spi` contract
 

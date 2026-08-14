@@ -1,6 +1,5 @@
 import CoreGraphics
 import Foundation
-
 // Image blend compositing for hosted raster surfaces is exposed by
 // `SwiftTUIRuntime` through the `Runners` host-integration SPI.
 @_spi(Runners) import SwiftTUIRuntime
@@ -342,7 +341,10 @@ enum NativeRasterSurfaceRenderer {
     guard rect.intersects(dirtyRect) else {
       return
     }
-    image.drawTerminalImage(in: rect)
+    // Placement alpha is deliberately applied after image lookup/compositing:
+    // changing opacity must not change decoded payload identity, and blended
+    // images fade as one composited result.
+    image.drawTerminalImage(in: rect, opacity: nativeImageOpacity(attachment))
   }
 
   private static func nativeImage(
@@ -361,4 +363,21 @@ enum NativeRasterSurfaceRenderer {
 
     return NativePlatformImage.terminalImage(from: attachment.source)
   }
+}
+
+/// Reads the additive opacity field without making this host's current tagged
+/// SwiftTUI dependency unbuildable before the lockstep 0.9.0 release exists.
+/// Pretag integration supplies the newer attachment layout; legacy 0.8.x
+/// attachments have no such child and remain fully opaque.
+func nativeImageOpacity(
+  _ attachment: Any
+) -> CGFloat {
+  let opacity =
+    Mirror(reflecting: attachment).children.first {
+      $0.label == "opacity"
+    }?.value as? Double
+  guard let opacity, opacity.isFinite else {
+    return 1
+  }
+  return CGFloat(max(0, min(1, opacity)))
 }

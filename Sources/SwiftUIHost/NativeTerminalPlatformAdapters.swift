@@ -105,13 +105,14 @@ import SwiftTUIRuntime
     }
 
     func drawTerminalImage(
-      in rect: CGRect
+      in rect: CGRect,
+      opacity: CGFloat = 1
     ) {
       draw(
         in: rect,
         from: .zero,
         operation: .sourceOver,
-        fraction: 1,
+        fraction: opacity,
         respectFlipped: true,
         hints: nil
       )
@@ -170,7 +171,10 @@ import SwiftTUIRuntime
       if event.modifierFlags.contains(.option) {
         result.insert(.alt)
       }
-      if event.modifierFlags.contains(.control) {
+      // SwiftTUI uses `.ctrl` as its cross-host primary editing modifier.
+      // Preserve physical Control while canonicalizing AppKit Command to the
+      // same modifier consumed by the shared text-input reducer.
+      if event.modifierFlags.contains(.control) || event.modifierFlags.contains(.command) {
         result.insert(.ctrl)
       }
       return result
@@ -265,9 +269,10 @@ import SwiftTUIRuntime
     }
 
     func drawTerminalImage(
-      in rect: CGRect
+      in rect: CGRect,
+      opacity: CGFloat = 1
     ) {
-      draw(in: rect)
+      draw(in: rect, blendMode: .normal, alpha: opacity)
     }
   }
 
@@ -278,9 +283,21 @@ import SwiftTUIRuntime
       guard let key = press.key else {
         return nil
       }
-      let modifiers = modifiers(for: key)
+      return inputEvent(
+        keyCode: key.keyCode,
+        charactersIgnoringModifiers: key.charactersIgnoringModifiers,
+        modifierFlags: key.modifierFlags
+      )
+    }
 
-      switch key.keyCode {
+    static func inputEvent(
+      keyCode: UIKeyboardHIDUsage,
+      charactersIgnoringModifiers: String,
+      modifierFlags: UIKeyModifierFlags
+    ) -> InputEvent? {
+      let modifiers = modifiers(for: modifierFlags)
+
+      switch keyCode {
       case .keyboardReturnOrEnter:
         return .key(.init(.return, modifiers: modifiers))
       case .keyboardTab:
@@ -305,8 +322,20 @@ import SwiftTUIRuntime
         break
       }
 
-      guard key.charactersIgnoringModifiers.count == 1,
-        let character = key.charactersIgnoringModifiers.first
+      return inputEvent(
+        charactersIgnoringModifiers: charactersIgnoringModifiers,
+        modifierFlags: modifierFlags
+      )
+    }
+
+    static func inputEvent(
+      charactersIgnoringModifiers: String,
+      modifierFlags: UIKeyModifierFlags
+    ) -> InputEvent? {
+      let modifiers = modifiers(for: modifierFlags)
+
+      guard charactersIgnoringModifiers.count == 1,
+        let character = charactersIgnoringModifiers.first
       else {
         return nil
       }
@@ -318,16 +347,19 @@ import SwiftTUIRuntime
     }
 
     private static func modifiers(
-      for key: UIKey
+      for modifierFlags: UIKeyModifierFlags
     ) -> EventModifiers {
       var result: EventModifiers = []
-      if key.modifierFlags.contains(.shift) {
+      if modifierFlags.contains(.shift) {
         result.insert(.shift)
       }
-      if key.modifierFlags.contains(.alternate) {
+      if modifierFlags.contains(.alternate) {
         result.insert(.alt)
       }
-      if key.modifierFlags.contains(.control) {
+      // SwiftTUI uses `.ctrl` as its cross-host primary editing modifier.
+      // Preserve physical Control while canonicalizing UIKit Command to the
+      // same modifier consumed by the shared text-input reducer.
+      if modifierFlags.contains(.control) || modifierFlags.contains(.command) {
         result.insert(.ctrl)
       }
       return result

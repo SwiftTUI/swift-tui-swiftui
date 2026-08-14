@@ -38,7 +38,7 @@ private struct TerminalSurfaceHost: SwiftUI.View {
       host: host,
       preferredLayoutSize: host.latestPreferredLayoutSize
     )
-      .background(.clear)
+    .background(.clear)
   }
 }
 
@@ -77,9 +77,11 @@ private struct TerminalSurfaceHost: SwiftUI.View {
         damage: host.latestPresentationDamage
       )
       view.style = host.style
-      view.focusPresentation = host.focusPresentation
-      view.allowsTextInput =
-        host.focusPresentation.prefersTextInput || host.manualKeyboardPresentationRequested
+      view.applyFocusPolicy(
+        host.focusPresentation,
+        allowsTextInput: host.focusPresentation.prefersTextInput
+          || host.manualKeyboardPresentationRequested
+      )
       view.onResize = { [weak host] size, cellPixelSize in
         host?.resize(to: size, cellPixelSize: cellPixelSize)
       }
@@ -123,9 +125,11 @@ private struct TerminalSurfaceHost: SwiftUI.View {
         damage: host.latestPresentationDamage
       )
       view.style = host.style
-      view.focusPresentation = host.focusPresentation
-      view.allowsTextInput =
-        host.focusPresentation.prefersTextInput || host.manualKeyboardPresentationRequested
+      view.applyFocusPolicy(
+        host.focusPresentation,
+        allowsTextInput: host.focusPresentation.prefersTextInput
+          || host.manualKeyboardPresentationRequested
+      )
       view.onResize = { [weak host] size, cellPixelSize in
         host?.resize(to: size, cellPixelSize: cellPixelSize)
       }

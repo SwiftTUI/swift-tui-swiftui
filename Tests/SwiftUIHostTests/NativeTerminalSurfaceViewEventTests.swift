@@ -8,6 +8,28 @@ import Testing
 
   @MainActor
   @Test
+  func native_input_mapper_maps_command_v_to_the_primary_editing_modifier() throws {
+    let event = try #require(keyEvent(character: "v", modifiers: .command, keyCode: 9))
+
+    #expect(
+      NativeInputMapper.inputEvent(for: event)
+        == .key(KeyPress(.character("v"), modifiers: .ctrl))
+    )
+  }
+
+  @MainActor
+  @Test
+  func native_input_mapper_maps_control_v_to_the_primary_editing_modifier() throws {
+    let event = try #require(keyEvent(character: "v", modifiers: .control, keyCode: 9))
+
+    #expect(
+      NativeInputMapper.inputEvent(for: event)
+        == .key(KeyPress(.character("v"), modifiers: .ctrl))
+    )
+  }
+
+  @MainActor
+  @Test
   func native_surface_view_emits_mouse_down_before_mouse_up() throws {
     let view = NativeTerminalSurfaceView(frame: NSRect(x: 0, y: 0, width: 160, height: 80))
     let metrics = NativeTerminalMetrics(style: .default)
@@ -52,6 +74,84 @@ import Testing
     )
 
     #expect(events.map(\.mouseKind) == [.down(.primary), .up(.primary)])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_restores_text_input_first_responder_after_window_resize() throws {
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+      styleMask: [.titled, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    let contentView = NSView(frame: window.contentLayoutRect)
+    let surface = NativeTerminalSurfaceView(frame: contentView.bounds)
+    let chrome = FirstResponderProbeView(frame: NSRect(x: 0, y: 0, width: 20, height: 20))
+    surface.applyFocusPolicy(
+      FocusPresentation(focusedIdentity: nil, semantics: .edit),
+      allowsTextInput: true
+    )
+    contentView.addSubview(surface)
+    contentView.addSubview(chrome)
+    window.contentView = contentView
+
+    // The representable is configured before AppKit attaches it to a window.
+    // Runtime-origin editing focus must take effect when that attachment occurs.
+    #expect(window.firstResponder === surface)
+    #expect(window.makeFirstResponder(surface))
+    #expect(window.firstResponder === surface)
+
+    #expect(window.makeFirstResponder(chrome))
+    #expect(window.firstResponder === chrome)
+    window.setContentSize(NSSize(width: 480, height: 320))
+
+    // SwiftUI reconfigures the representable with the same runtime-origin
+    // editing focus after a resize. That update must restore keyboard input to
+    // the terminal surface even though the value itself did not change.
+    surface.applyFocusPolicy(
+      FocusPresentation(focusedIdentity: nil, semantics: .edit),
+      allowsTextInput: true
+    )
+
+    #expect(window.firstResponder === surface)
+  }
+
+  @MainActor
+  @Test(
+    arguments: [
+      FocusPresentation(focusedIdentity: nil, semantics: .activate),
+      FocusPresentation.none,
+    ]
+  )
+  func native_surface_view_does_not_steal_chrome_focus_when_text_input_deactivates(
+    nextFocus: FocusPresentation
+  ) {
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+      styleMask: [.titled, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    let contentView = NSView(frame: window.contentLayoutRect)
+    let surface = NativeTerminalSurfaceView(frame: contentView.bounds)
+    let chrome = FirstResponderProbeView(frame: NSRect(x: 0, y: 0, width: 20, height: 20))
+    contentView.addSubview(surface)
+    contentView.addSubview(chrome)
+    window.contentView = contentView
+
+    surface.applyFocusPolicy(
+      FocusPresentation(focusedIdentity: nil, semantics: .edit),
+      allowsTextInput: true
+    )
+    #expect(window.firstResponder === surface)
+
+    #expect(window.makeFirstResponder(chrome))
+    #expect(window.firstResponder === chrome)
+
+    surface.applyFocusPolicy(nextFocus, allowsTextInput: false)
+
+    #expect(window.firstResponder === chrome)
   }
 
   @MainActor
@@ -234,6 +334,25 @@ import Testing
     )!
   }
 
+  private func keyEvent(
+    character: String,
+    modifiers: NSEvent.ModifierFlags,
+    keyCode: UInt16
+  ) -> NSEvent? {
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: modifiers,
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: character,
+      charactersIgnoringModifiers: character,
+      isARepeat: false,
+      keyCode: keyCode
+    )
+  }
+
   private func scrollEvent(
     location: NSPoint,
     scrollingDeltaX: CGFloat,
@@ -249,6 +368,190 @@ import Testing
     )!
     event.location = location
     return NSEvent(cgEvent: event)!
+  }
+
+  private final class FirstResponderProbeView: NSView {
+    override var acceptsFirstResponder: Bool { true }
+  }
+#elseif canImport(UIKit)
+  import UIKit
+
+  @Test
+  func native_input_mapper_maps_command_v_to_the_primary_editing_modifier() {
+    #expect(
+      NativeInputMapper.inputEvent(
+        keyCode: .keyboardV,
+        charactersIgnoringModifiers: "v",
+        modifierFlags: .command
+      ) == .key(KeyPress(.character("v"), modifiers: .ctrl))
+    )
+  }
+
+  @Test
+  func native_input_mapper_maps_control_v_to_the_primary_editing_modifier() {
+    #expect(
+      NativeInputMapper.inputEvent(
+        keyCode: .keyboardV,
+        charactersIgnoringModifiers: "v",
+        modifierFlags: .control
+      ) == .key(KeyPress(.character("v"), modifiers: .ctrl))
+    )
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_claims_and_dispatches_primary_editing_key_commands() throws {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+    let rootViewController = UIViewController()
+    let surface = NativeTerminalSurfaceView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+    rootViewController.view.addSubview(surface)
+    window.rootViewController = rootViewController
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+    #expect(surface.becomeFirstResponder())
+
+    var events: [InputEvent] = []
+    surface.onInputEvent = { events.append($0) }
+
+    let commands = try #require(surface.keyCommands)
+    let expectedInputs = ["a", "c", "x", "v"]
+    let expectedModifierFlags: [UIKeyModifierFlags] = [.command, .control]
+    for input in expectedInputs {
+      for modifierFlags in expectedModifierFlags {
+        let command = try #require(
+          commands.first {
+            $0.input == input && $0.modifierFlags == modifierFlags
+          }
+        )
+        #expect(command.discoverabilityTitle == nil)
+
+        let eventCountBeforeDispatch = events.count
+        surface.perform(command.action, with: command)
+        #expect(events.count == eventCountBeforeDispatch + 1)
+        #expect(
+          events.last
+            == .key(KeyPress(.character(Character(input)), modifiers: .ctrl))
+        )
+      }
+    }
+  }
+
+  @MainActor
+  @Test(
+    arguments: [
+      FocusPresentation(focusedIdentity: nil, semantics: .activate),
+      FocusPresentation.none,
+    ]
+  )
+  func native_surface_view_does_not_steal_chrome_focus_when_text_input_deactivates(
+    nextFocus: FocusPresentation
+  ) {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+    let rootViewController = UIViewController()
+    let surface = NativeTerminalSurfaceView(frame: window.bounds)
+    let chrome = FirstResponderProbeView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+    rootViewController.view.addSubview(surface)
+    rootViewController.view.addSubview(chrome)
+    window.rootViewController = rootViewController
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+
+    surface.applyFocusPolicy(
+      FocusPresentation(focusedIdentity: nil, semantics: .edit),
+      allowsTextInput: true
+    )
+    #expect(surface.isFirstResponder)
+
+    #expect(chrome.becomeFirstResponder())
+    #expect(chrome.isFirstResponder)
+
+    surface.applyFocusPolicy(nextFocus, allowsTextInput: false)
+
+    #expect(chrome.isFirstResponder)
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_pointer_lifecycle_defers_first_responder_until_after_action_dispatch() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+    let rootViewController = UIViewController()
+    let surface = NativeTerminalSurfaceView(frame: window.bounds)
+    let chrome = FirstResponderProbeView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+    rootViewController.view.addSubview(surface)
+    rootViewController.view.addSubview(chrome)
+    window.rootViewController = rootViewController
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+
+    surface.applyFocusPolicy(
+      FocusPresentation(focusedIdentity: nil, semantics: .activate),
+      allowsTextInput: false
+    )
+    #expect(chrome.becomeFirstResponder())
+    #expect(chrome.isFirstResponder)
+
+    var events: [InputEvent] = []
+    var chromeWasResponderDuringDispatch: [Bool] = []
+    surface.onInputEvent = {
+      events.append($0)
+      chromeWasResponderDuringDispatch.append(chrome.isFirstResponder)
+    }
+    let touch = TouchProbe(location: CGPoint(x: 40, y: 40))
+    surface.touchesBegan([touch], with: nil)
+    surface.touchesEnded([touch], with: nil)
+
+    #expect(events.map(\.mouseKind) == [.down(.primary), .up(.primary)])
+    #expect(chromeWasResponderDuringDispatch == [true, true])
+    #expect(surface.isFirstResponder)
+
+    surface.insertText("k")
+    #expect(events.last == .key(KeyPress(.character("k"))))
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_cancelled_pointer_does_not_steal_chrome_focus() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+    let rootViewController = UIViewController()
+    let surface = NativeTerminalSurfaceView(frame: window.bounds)
+    let chrome = FirstResponderProbeView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+    rootViewController.view.addSubview(surface)
+    rootViewController.view.addSubview(chrome)
+    window.rootViewController = rootViewController
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+
+    surface.applyFocusPolicy(
+      FocusPresentation(focusedIdentity: nil, semantics: .activate),
+      allowsTextInput: false
+    )
+    #expect(chrome.becomeFirstResponder())
+
+    var events: [InputEvent] = []
+    surface.onInputEvent = { events.append($0) }
+    let touch = TouchProbe(location: CGPoint(x: 40, y: 40))
+    surface.touchesBegan([touch], with: nil)
+    surface.touchesCancelled([touch], with: nil)
+
+    #expect(events.map(\.mouseKind) == [.down(.primary), .up(.primary)])
+    #expect(chrome.isFirstResponder)
+  }
+
+  private final class FirstResponderProbeView: UIView {
+    override var canBecomeFirstResponder: Bool { true }
+  }
+
+  private final class TouchProbe: UITouch {
+    private let probeLocation: CGPoint
+
+    init(location: CGPoint) {
+      probeLocation = location
+      super.init()
+    }
+
+    override func location(in view: UIView?) -> CGPoint {
+      probeLocation
+    }
   }
 #endif
 
