@@ -13,6 +13,10 @@ platform.
 
 ## Topics
 
+### Getting Started
+
+- <doc:Embedding-In-A-SwiftUI-App>
+
 ### Native Host Views
 
 - ``SwiftUIHostAppView``

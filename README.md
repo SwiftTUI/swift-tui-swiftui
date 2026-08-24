@@ -38,9 +38,9 @@ the runtime and exposes the live scene.
   terminal executable, a static WASI bundle, a localhost WebHost, a native
   Android surface, and, through this package, a native SwiftUI surface on macOS
   or iOS. You write the interface once and choose where it ships. The
-  [`counter`](https://github.com/SwiftTUI/swift-tui-examples/tree/main/counter)
-  example renders one source in a terminal, a SwiftUI window, and the browser at
-  once.
+  [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo)
+  repo renders one source in a terminal, a SwiftUI window, the browser, and an
+  Android app.
 - **Drop-in SwiftUI.** `SwiftUIHostAppView` goes straight into a `WindowGroup`, a
   split view, or a sheet. There is no representable bridge to write and nothing
   to wire before your view appears.
@@ -95,9 +95,11 @@ open SwiftUIExample/SwiftUIExample.xcodeproj   # native SwiftUI host app — run
 ```
 
 [`swift-tui-examples`](https://github.com/SwiftTUI/swift-tui-examples) contains
-`SwiftUIExample`, `LayoutsSwiftUI`, and `counter`. The `counter` source runs in
-a terminal, a SwiftUI window, and a browser. For a headless `swift run` without
-Xcode, use `swiftly run swift run --package-path counter counter`.
+`SwiftUIExample` and `LayoutsSwiftUI`, a SwiftUI-vs-SwiftTUI parity gallery.
+The multi-host counter lives in
+[`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo);
+clone it and open its SwiftUI window without Xcode via
+`swiftly run swift run --package-path counter CounterSwiftUI`.
 
 ## Requirements
 
