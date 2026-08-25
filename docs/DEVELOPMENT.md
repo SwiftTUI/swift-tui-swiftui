@@ -12,6 +12,11 @@ package graph excludes it from Linux.
 `swiftly run swift test` when `swiftly` is available. CI provisions the
 pinned toolchain the same way (see `.github/workflows/test.yml`).
 
+SwiftUIHost is Apple-only, so the gate cannot run on Linux and has no
+per-push CI job. The macOS gate runs nightly (skipping itself when nothing
+has landed since its last green run), on every release tag, and on
+`workflow_dispatch`. Run the gate locally before pushing.
+
 ## Releases
 
 Versions are lockstep with the SwiftTUI org. The org coordination root owns

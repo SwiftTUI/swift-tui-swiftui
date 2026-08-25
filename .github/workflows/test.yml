@@ -6,13 +6,21 @@ name: Test
 # command as the org root's //:swift_tui_swiftui_native_gate (swiftly-managed
 # `swift test`), so a red here means the org gate would be red too.
 #
-# The weekly run guards the no-push failure modes: a re-pointed upstream
-# release tag or a runner-image/toolchain change breaking resolution.
+# Lane shape (swift-tui-org plan 2026-08-25-001 Stage 4): SwiftUIHost is
+# Apple-only (it imports SwiftUI/AppKit/UIKit), so nothing here can run on
+# Linux, and the plan's first principle is that the per-push hot path runs
+# only what Linux can run. The macOS suite therefore runs:
+#   * nightly, guarded by lane-verdict-probe so it exits in under a minute
+#     when nothing has landed since its last green run;
+#   * on every tag push (`*.*.*`) — required for a release;
+#   * on workflow_dispatch, on demand.
+# There is deliberately no push / pull_request job.
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    tags: ["*.*.*"]
+  schedule:
+    - cron: "53 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -23,8 +31,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Skip-if-unchanged guard (plan 2026-08-25-001 §6). On a schedule, a green
+  # verdict already recorded for this exact commit means the run ends here.
+  # Dispatch and tag pushes always run.
+  changes:
+    name: Skip macOS lane if unchanged
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.probe.outputs.changed }}
+      key: ${{ steps.probe.outputs.key }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Probe the lane verdict
+        id: probe
+        uses: ./.github/actions/lane-verdict-probe
+        with:
+          lane: swiftui-macos
+
   macos-host:
     name: SwiftUIHost tests (macOS)
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -75,3 +105,18 @@ jobs:
       - name: Run native gate
         shell: bash
         run: Scripts/native_gate.sh
+
+  record-macos-verdict:
+    name: Record macOS lane verdict
+    needs: [changes, macos-host]
+    if: needs.changes.outputs.changed == 'true' && needs.macos-host.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Record the green verdict
+        uses: ./.github/actions/lane-verdict-record
+        with:
+          key: ${{ needs.changes.outputs.key }}
