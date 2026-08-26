@@ -40,8 +40,8 @@ released and consumed in lockstep.
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.9.10"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.9.10"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.9.11"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.9.11"),
 ],
 targets: [
   .executableTarget(
