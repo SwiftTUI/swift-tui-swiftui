@@ -39,6 +39,10 @@ enum NativeRasterSurfaceRenderer {
       return
     }
 
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.clip(to: dirtyBounds)
+
     let defaultForeground = style.palette.foreground
     let defaultBackground = style.palette.background
     context.setFillColor(
@@ -53,8 +57,15 @@ enum NativeRasterSurfaceRenderer {
       return
     }
 
-    for (y, row) in surface.cells.enumerated() {
-      for (x, cell) in row.enumerated() where !cell.isContinuation {
+    let rows = visibleIndices(
+      lower: dirtyBounds.minY, upper: dirtyBounds.maxY,
+      pitch: metrics.cellSize.height, count: surface.cells.count
+    )
+    for y in rows {
+      let row = surface.cells[y]
+      for x in visibleColumns(in: row, dirtyRect: dirtyBounds, metrics: metrics) {
+        let cell = row[x]
+        guard !cell.isContinuation else { continue }
         let rect = cellRect(x: x, y: y, span: cell.spanWidth, metrics: metrics)
         guard rect.intersects(dirtyBounds) else {
           continue
@@ -65,6 +76,7 @@ enum NativeRasterSurfaceRenderer {
           y: y,
           style: cell.style ?? ResolvedTextStyle(),
           defaultForeground: defaultForeground,
+          defaultBackground: defaultBackground,
           metrics: metrics,
           context: context
         )
@@ -80,6 +92,35 @@ enum NativeRasterSurfaceRenderer {
         context: context
       )
     }
+  }
+
+  static func visibleIndices(lower: CGFloat, upper: CGFloat, pitch: CGFloat, count: Int)
+    -> Range<Int>
+  {
+    guard count > 0, pitch.isFinite, pitch > 0, lower.isFinite, upper.isFinite,
+      lower < upper
+    else { return 0..<0 }
+    let first = Int(max(0, min(CGFloat(count), floor(lower / pitch))))
+    let end = Int(max(CGFloat(first), min(CGFloat(count), ceil(upper / pitch))))
+    return first..<end
+  }
+
+  static func visibleColumns(
+    in row: [RasterCell], dirtyRect: CGRect, metrics: NativeTerminalMetrics
+  ) -> Range<Int> {
+    let columns = visibleIndices(
+      lower: dirtyRect.minX, upper: dirtyRect.maxX,
+      pitch: metrics.cellSize.width, count: row.count
+    )
+    guard !columns.isEmpty else { return columns }
+    // Damage can start inside a wide glyph. Recover its lead without scanning
+    // every preceding cell; the raster continuation carries that exact index.
+    if let lead = row[columns.lowerBound].continuationLeadX,
+      lead >= 0, lead < columns.lowerBound
+    {
+      return lead..<columns.upperBound
+    }
+    return columns
   }
 
   static func dirtyRects(
@@ -168,13 +209,29 @@ enum NativeRasterSurfaceRenderer {
     y: Int,
     style: ResolvedTextStyle,
     defaultForeground: SwiftTUIRuntime.Color,
+    defaultBackground: SwiftTUIRuntime.Color,
     metrics: NativeTerminalMetrics,
     context: CGContext
   ) {
     let spanWidth = max(1, cell.spanWidth)
     let rect = cellRect(x: x, y: y, span: spanWidth, metrics: metrics)
+    // Terminal cells own their ink, including italic/fallback overhang. Apply
+    // the same bounds during full and incremental paint so damage never leaves
+    // stale glyph pixels in a neighbouring cell.
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.clip(to: rect)
 
-    if let background = style.backgroundColor {
+    let reversed = style.emphasis.contains(.reverse)
+    let foreground =
+      reversed
+      ? (style.backgroundColor ?? defaultBackground)
+      : (style.foregroundColor ?? defaultForeground)
+    let background =
+      reversed
+      ? (style.foregroundColor ?? defaultForeground)
+      : style.backgroundColor
+    if let background {
       context.setFillColor(
         NativePlatformColor.terminalColor(
           background,
@@ -184,24 +241,20 @@ enum NativeRasterSurfaceRenderer {
       context.fill(rect)
     }
 
-    guard cell.character != " " else {
-      return
-    }
-
-    let foreground = style.foregroundColor ?? defaultForeground
     let color = NativePlatformColor.terminalColor(
       foreground,
       alphaMultiplier: style.opacity
     )
 
     let drewBoxDrawing =
-      BoxDrawingRenderer.canRender(cell.character)
-      && BoxDrawingRenderer.draw(
-        character: cell.character,
-        in: rect,
-        color: color.cgColor,
-        context: context
-      )
+      cell.character == " "
+      || BoxDrawingRenderer.canRender(cell.character)
+        && BoxDrawingRenderer.draw(
+          character: cell.character,
+          in: rect,
+          color: color.cgColor,
+          context: context
+        )
 
     if !drewBoxDrawing {
       drawGlyph(
@@ -321,14 +374,10 @@ enum NativeRasterSurfaceRenderer {
     style: SwiftUIHostTerminalStyle,
     metrics: NativeTerminalMetrics,
     dirtyRect: CGRect,
-    context _: CGContext
+    context: CGContext
   ) {
-    guard let image = nativeImage(for: attachment, style: style) else {
-      return
-    }
-
     let bounds = attachment.visibleBounds
-    guard !bounds.isEmpty else {
+    guard !bounds.isEmpty, !attachment.bounds.isEmpty else {
       return
     }
 
@@ -341,16 +390,27 @@ enum NativeRasterSurfaceRenderer {
     guard rect.intersects(dirtyRect) else {
       return
     }
+    // Geometry rejection precedes file/data lookup and blend preparation.
+    guard let resolved = nativeImage(for: attachment, style: style) else { return }
+    let placement = CGRect(
+      x: CGFloat(resolved.bounds.origin.x) * metrics.cellSize.width,
+      y: CGFloat(resolved.bounds.origin.y) * metrics.cellSize.height,
+      width: CGFloat(resolved.bounds.size.width) * metrics.cellSize.width,
+      height: CGFloat(resolved.bounds.size.height) * metrics.cellSize.height
+    )
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.clip(to: rect)
     // Placement alpha is deliberately applied after image lookup/compositing:
     // changing opacity must not change decoded payload identity, and blended
     // images fade as one composited result.
-    image.drawTerminalImage(in: rect, opacity: nativeImageOpacity(attachment))
+    resolved.image.drawTerminalImage(in: placement, opacity: CGFloat(attachment.opacity))
   }
 
   private static func nativeImage(
     for attachment: RasterImageAttachment,
     style: SwiftUIHostTerminalStyle
-  ) -> NativePlatformImage? {
+  ) -> (image: NativePlatformImage, bounds: CellRect)? {
     if attachment.compositing != nil,
       let payload = imageBlendCompositor.encodedPNGPayload(
         for: attachment,
@@ -358,26 +418,11 @@ enum NativeRasterSurfaceRenderer {
       ),
       let image = NativePlatformImage.terminalImage(from: .data(payload.bytes))
     {
-      return image
+      // The encoded blend payload is already cropped to visibleBounds.
+      return (image, attachment.visibleBounds)
     }
 
-    return NativePlatformImage.terminalImage(from: attachment.source)
+    guard let image = NativePlatformImage.terminalImage(from: attachment.source) else { return nil }
+    return (image, attachment.bounds)
   }
-}
-
-/// Reads the additive opacity field without making this host's current tagged
-/// SwiftTUI dependency unbuildable before the lockstep 0.9.0 release exists.
-/// Pretag integration supplies the newer attachment layout; legacy 0.8.x
-/// attachments have no such child and remain fully opaque.
-func nativeImageOpacity(
-  _ attachment: Any
-) -> CGFloat {
-  let opacity =
-    Mirror(reflecting: attachment).children.first {
-      $0.label == "opacity"
-    }?.value as? Double
-  guard let opacity, opacity.isFinite else {
-    return 1
-  }
-  return CGFloat(max(0, min(1, opacity)))
 }
