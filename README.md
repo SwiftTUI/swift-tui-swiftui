@@ -32,6 +32,19 @@ struct MyHostApp: SwiftUI.App {
 `SwiftUIHostAppView` is a plain `View`. `SwiftUIHostAppState` starts and stops
 the runtime and exposes the live scene.
 
+The manual keyboard toggle is hidden by default. To enable it on iOS, pass a
+`SwiftUIHostConfiguration`:
+
+```swift
+SwiftUIHostAppView(
+  state: hostState,
+  configuration: .init(showsKeyboardToggleButton: true)
+)
+```
+
+The button appears only when no text-input control is focused. Text-input
+controls continue to present the keyboard automatically when focused.
+
 ## Why use it
 
 - **One app, five hosts.** Code authored against SwiftTUI runs unchanged as a
@@ -79,9 +92,11 @@ targets: [
 ]
 ```
 
-Import `SwiftUIHost`. The consumer surface contains three types:
+Import `SwiftUIHost`. The main integration types are:
 
 - `SwiftUIHostAppView` is the SwiftUI `View`.
+- `SwiftUIHostConfiguration` controls host presentation options, including the
+  opt-in iOS keyboard toggle.
 - `SwiftUIHostAppState` controls the runtime. Its initializer throws if the app
   declares no scenes.
 - `SwiftUIHostTerminalStyle` controls the terminal style.

@@ -3,9 +3,20 @@ public import SwiftUI
 
 public struct SwiftUIHostAppView<A: SwiftTUIRuntime.App>: SwiftUI.View {
   private let state: SwiftUIHostAppState<A>
+  private let configuration: SwiftUIHostConfiguration
 
-  public init(state: SwiftUIHostAppState<A>) {
+  /// Creates a host view with the supplied presentation configuration.
+  ///
+  /// - Parameters:
+  ///   - state: The hosted app's runtime and scene state.
+  ///   - configuration: Presentation options. The default configuration hides
+  ///     the manual keyboard toggle.
+  public init(
+    state: SwiftUIHostAppState<A>,
+    configuration: SwiftUIHostConfiguration = .default
+  ) {
     self.state = state
+    self.configuration = configuration
   }
 
   public var body: some SwiftUI.View {
@@ -18,7 +29,10 @@ public struct SwiftUIHostAppView<A: SwiftTUIRuntime.App>: SwiftUI.View {
           state.selectScene(sceneID)
         }
       }
-      SceneTerminalSurface(host: state.currentSceneHost)
+      SceneTerminalSurface(
+        host: state.currentSceneHost,
+        configuration: configuration
+      )
     }
     .task {
       state.start()
@@ -181,6 +195,7 @@ private struct SceneSwitcherBar: SwiftUI.View {
 
 private struct SceneTerminalSurface: SwiftUI.View {
   let host: SwiftUIHostSceneHost?
+  let configuration: SwiftUIHostConfiguration
 
   var body: some SwiftUI.View {
     Group {
@@ -197,7 +212,9 @@ private struct SceneTerminalSurface: SwiftUI.View {
           .id(host.descriptor.id)
           #if canImport(UIKit) && !targetEnvironment(macCatalyst)
             .overlay(alignment: .topTrailing) {
-              if host.focusPresentation.prefersTextInput == false {
+              if configuration.showsKeyboardToggleButton
+                && host.focusPresentation.prefersTextInput == false
+              {
                 KeyboardToggleButton(
                   isPresented: host.manualKeyboardPresentationRequested,
                   action: host.toggleManualKeyboardPresentation

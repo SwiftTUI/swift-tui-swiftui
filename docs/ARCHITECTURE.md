@@ -33,7 +33,13 @@ framework before every release to keep the contract honest.
 
 ## Consumer surface
 
-Three public types: `SwiftUIHostAppView` (the SwiftUI `View`),
-`SwiftUIHostAppState` (starts/stops the runtime; throws when the app declares
-no scenes), and `SwiftUIHostTerminalStyle` (font size, palette, theme,
-cursor). Everything else is implementation detail.
+The main integration types are `SwiftUIHostAppView` (the SwiftUI `View`),
+`SwiftUIHostConfiguration` (presentation options), `SwiftUIHostAppState`
+(starts/stops the runtime; throws when the app declares no scenes), and
+`SwiftUIHostTerminalStyle` (font size, palette, theme, cursor).
+
+The host view accepts a configuration value that defaults to `.default`.
+Its `showsKeyboardToggleButton` option defaults to `false`; enabling it allows
+the iOS manual keyboard toggle when no text-input control is focused. Automatic
+keyboard presentation for focused text-input controls is independent of this
+option. macOS and Mac Catalyst do not display the toggle.

@@ -56,10 +56,12 @@ targets: [
 
 ## The Consumer Surface
 
-Import `SwiftUIHost`. Three types cover the integration:
+Import `SwiftUIHost`. The main integration types are:
 
 - ``SwiftUIHostAppView`` — the SwiftUI `View`. Put it in a `WindowGroup`, a
   split view, or a sheet.
+- ``SwiftUIHostConfiguration`` — presentation options, including the opt-in
+  iOS keyboard toggle.
 - ``SwiftUIHostAppState`` — controls the runtime and scene selection.
 - ``SwiftUIHostTerminalStyle`` — font size, palette, theme, and cursor, so
   the hosted surface inherits your app's look instead of standing out as a
@@ -73,6 +75,20 @@ labels, hints, and runtime focus to VoiceOver; assistive-origin focus and
 control actions are not yet routed back into SwiftTUI in 0.9. The terminal
 font is bundled. Scrolling follows the platform: on iOS a scroll view pans
 when you drag it, while on macOS a press-drag stays a click-drag.
+
+The manual keyboard toggle is hidden by default. Enable it on iOS by passing
+a ``SwiftUIHostConfiguration``:
+
+```swift
+SwiftUIHostAppView(
+  state: hostState,
+  configuration: .init(showsKeyboardToggleButton: true)
+)
+```
+
+The button appears only when no text-input control is focused. Text-input
+controls still present the keyboard automatically when focused. The option has
+no effect on macOS or Mac Catalyst.
 
 ## Run the Demo
 

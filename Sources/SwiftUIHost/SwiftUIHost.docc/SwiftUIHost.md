@@ -20,6 +20,7 @@ platform.
 ### Native Host Views
 
 - ``SwiftUIHostAppView``
+- ``SwiftUIHostConfiguration``
 
 ### Host State
 
