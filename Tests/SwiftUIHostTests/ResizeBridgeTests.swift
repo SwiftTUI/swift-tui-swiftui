@@ -1,5 +1,4 @@
 import CoreGraphics
-import SwiftTUI
 import SwiftTUIRuntime
 import Testing
 

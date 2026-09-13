@@ -334,6 +334,7 @@ enum NativeRasterSurfaceRenderer {
         } ?? fallbackColor
       strokeLine(
         y: rect.minY + metrics.cellSize.height - 2,
+        pattern: underlineStyle.pattern,
         color: color,
         rect: rect,
         context: context
@@ -347,6 +348,7 @@ enum NativeRasterSurfaceRenderer {
         } ?? fallbackColor
       strokeLine(
         y: rect.midY,
+        pattern: strikethroughStyle.pattern,
         color: color,
         rect: rect,
         context: context
@@ -356,6 +358,7 @@ enum NativeRasterSurfaceRenderer {
 
   private static func strokeLine(
     y: CGFloat,
+    pattern: TextLineStyle.Pattern,
     color: NativePlatformColor,
     rect: CGRect,
     context: CGContext
@@ -363,8 +366,37 @@ enum NativeRasterSurfaceRenderer {
     context.saveGState()
     context.setStrokeColor(color.cgColor)
     context.setLineWidth(1)
+    // Anchor patterns to the surface, so adjacent cells and partial repaint
+    // use exactly the same phase even when the dirty region starts mid-run.
+    let lengths: [CGFloat]
+    switch pattern {
+    case .dot: lengths = [1, 3]
+    case .dash: lengths = [4, 3]
+    case .dashDot: lengths = [4, 3, 1, 3]
+    case .dashDotDot: lengths = [4, 3, 1, 3, 1, 3]
+    case .solid, .double, .curly: lengths = []
+    }
+    context.setLineDash(phase: rect.minX, lengths: lengths)
+    if pattern == .curly {
+      let step: CGFloat = 0.5
+      func wave(_ x: CGFloat) -> CGFloat { y + sin(x * .pi / 3) }
+      context.move(to: CGPoint(x: rect.minX, y: wave(rect.minX)))
+      var x = rect.minX + step
+      while x < rect.maxX {
+        context.addLine(to: CGPoint(x: x, y: wave(x)))
+        x += step
+      }
+      context.addLine(to: CGPoint(x: rect.maxX, y: wave(rect.maxX)))
+      context.strokePath()
+      context.restoreGState()
+      return
+    }
     context.move(to: CGPoint(x: rect.minX, y: y))
     context.addLine(to: CGPoint(x: rect.maxX, y: y))
+    if pattern == .double {
+      context.move(to: CGPoint(x: rect.minX, y: y - 2))
+      context.addLine(to: CGPoint(x: rect.maxX, y: y - 2))
+    }
     context.strokePath()
     context.restoreGState()
   }

@@ -1,4 +1,3 @@
-import SwiftTUI
 @_spi(Runners) import SwiftTUIRuntime
 import Testing
 

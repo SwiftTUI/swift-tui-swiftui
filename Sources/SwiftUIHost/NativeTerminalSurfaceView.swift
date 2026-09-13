@@ -16,6 +16,11 @@ import SwiftTUIRuntime
 
     var surface: RasterSurface? { presenter.surface }
 
+    var onDrawRect: ((CGRect) -> Void)? {
+      get { presenter.onDrawRect }
+      set { presenter.onDrawRect = newValue }
+    }
+
     var style: SwiftUIHostTerminalStyle = .default {
       didSet {
         guard oldValue != style else {
@@ -78,10 +83,8 @@ import SwiftTUIRuntime
       guard let context = NSGraphicsContext.current?.cgContext else {
         return
       }
-      NativeRasterSurfaceRenderer.draw(
-        surface: presenter.surface,
+      presenter.draw(
         style: style,
-        metrics: presenter.metrics,
         bounds: bounds,
         dirtyRect: dirtyRect,
         context: context
@@ -241,6 +244,11 @@ import SwiftTUIRuntime
 
     var surface: RasterSurface? { presenter.surface }
 
+    var onDrawRect: ((CGRect) -> Void)? {
+      get { presenter.onDrawRect }
+      set { presenter.onDrawRect = newValue }
+    }
+
     var style: SwiftUIHostTerminalStyle = .default {
       didSet {
         guard oldValue != style else {
@@ -319,10 +327,8 @@ import SwiftTUIRuntime
       guard let context = UIGraphicsGetCurrentContext() else {
         return
       }
-      NativeRasterSurfaceRenderer.draw(
-        surface: presenter.surface,
+      presenter.draw(
         style: style,
-        metrics: presenter.metrics,
         bounds: bounds,
         dirtyRect: rect,
         context: context

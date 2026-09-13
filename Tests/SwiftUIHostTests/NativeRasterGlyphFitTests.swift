@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import SwiftTUI
+import SwiftTUIRuntime
 import Testing
 
 @_spi(Raster) @testable import SwiftUIHost

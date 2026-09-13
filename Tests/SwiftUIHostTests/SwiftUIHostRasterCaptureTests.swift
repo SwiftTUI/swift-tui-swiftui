@@ -1,5 +1,5 @@
 import CoreGraphics
-import SwiftTUI
+import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 
@@ -11,7 +11,7 @@ import Testing
 @Suite(.serialized)
 struct SwiftUIHostRasterCaptureTests {
   @Test
-  func renders_latest_surface_to_image_at_expected_pixel_size() async throws {
+  func capture_respects_the_platform_contract() async throws {
     let host = try SwiftUIHostSceneHost(
       app: RasterHostApp(),
       descriptor: .init(id: "main", title: "Main", isDefault: true),
@@ -31,14 +31,22 @@ struct SwiftUIHostRasterCaptureTests {
     #expect(host.latestFrameSequence != nil)
 
     let scale: CGFloat = 2
-    let image = try #require(host.renderLatestSurfaceToCGImage(scale: scale))
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+      let image = try #require(host.renderLatestSurfaceToCGImage(scale: scale))
 
-    // The image is `cols*cellWidth*scale × rows*cellHeight*scale` pixels.
-    let metrics = NativeTerminalMetrics(style: .default)
-    let expectedWidth = Int((CGFloat(surface.size.width) * metrics.cellSize.width * scale).rounded())
-    let expectedHeight = Int((CGFloat(surface.size.height) * metrics.cellSize.height * scale).rounded())
-    #expect(image.width == expectedWidth)
-    #expect(image.height == expectedHeight)
+      // The image is `cols*cellWidth*scale × rows*cellHeight*scale` pixels.
+      let metrics = NativeTerminalMetrics(style: .default)
+      let expectedWidth = Int(
+        (CGFloat(surface.size.width) * metrics.cellSize.width * scale).rounded())
+      let expectedHeight = Int(
+        (CGFloat(surface.size.height) * metrics.cellSize.height * scale).rounded())
+      #expect(image.width == expectedWidth)
+      #expect(image.height == expectedHeight)
+    #else
+      // Raster capture is documented as AppKit-only. UIKit's actual view
+      // invalidation path has its own independent bitmap qualification.
+      #expect(host.renderLatestSurfaceToCGImage(scale: scale) == nil)
+    #endif
   }
 
   @Test

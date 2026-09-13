@@ -10,6 +10,16 @@ Raster drawing selects rows and columns from dirty geometry, recovering wide
 glyph leads when damage starts in a continuation cell. Full and incremental
 paints clip glyph ink to each declared cell span, including italic and fallback
 overhang. Blank cells still paint reverse-video backgrounds and line decorations.
+Underline and strikethrough support solid, dotted, dashed, dash-dot,
+dash-dot-dot, double and curly patterns. Pattern phase uses surface coordinates,
+so a partial paint does not restart a dash or wave at the damaged cell.
+
+`HostedSurfacePresenter` owns shared AppKit/UIKit negotiation and damage state.
+It retains disjoint dirty rectangles until native draw callbacks consume them,
+because the platform may deliver their bounding rectangle. More than 128 pending
+rectangles conservatively requests a full paint. Integration tests drive real
+NSWindow/UIWindow view invalidation and mirror the executed paint rectangles
+into a bitmap; they do not claim window-server screenshot coverage.
 
 Images outside the dirty region are rejected before lookup. Images retain their
 original placement under a visible-bounds clip; blend payloads already cropped to

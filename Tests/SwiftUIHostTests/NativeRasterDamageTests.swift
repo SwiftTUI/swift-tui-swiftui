@@ -10,6 +10,168 @@ import Testing
 
   @MainActor
   struct NativeRasterDamageTests {
+    @Test("pending damage survives split callbacks and repeated presentations; bursts are bounded")
+    func pendingDamageLifecycle() throws {
+      try withContext(columns: 8) { context, metrics, bounds in
+        let presenter = HostedSurfacePresenter()
+        let surface = RasterSurface(
+          size: .init(width: 8, height: 1), cells: [Array(repeating: .empty, count: 8)])
+        var painted: [CGRect] = []
+        presenter.onDrawRect = { painted.append($0) }
+        @MainActor func draw(_ rect: CGRect) {
+          presenter.draw(style: .default, bounds: bounds, dirtyRect: rect, context: context)
+        }
+        @MainActor func present(_ ranges: [Range<Int>]) {
+          _ = presenter.present(
+            surface: surface,
+            damage: .init(textRows: [.init(row: 0, columnRanges: ranges)]), bounds: bounds)
+        }
+        present([])
+        draw(bounds)
+        painted.removeAll()
+        present([0..<2])
+        present([7..<8])
+        let firstCell = CGRect(origin: .zero, size: metrics.cellSize)
+        draw(firstCell)
+        #expect(painted == [firstCell])
+        painted.removeAll()
+        draw(bounds)
+        #expect(painted.count == 2)
+        #expect(painted[0].minX == metrics.cellSize.width)
+        #expect(painted[0].width == metrics.cellSize.width)
+        #expect(painted[1].minX == metrics.cellSize.width * 7)
+        painted.removeAll()
+        for _ in 0..<129 { present([0..<1]) }
+        draw(bounds)
+        #expect(painted == [bounds])
+        painted.removeAll()
+        present([0..<1])
+        presenter.invalidateDisplay()
+        draw(bounds)
+        #expect(painted == [bounds])
+      }
+    }
+
+    @Test("STUI-321: AppKit view preserves the gap between disjoint invalidations")
+    func appKitDisjointViewDamage() throws {
+      let metrics = NativeTerminalMetrics(style: .default)
+      let bounds = CGRect(
+        x: 0, y: 0, width: metrics.cellSize.width * 8, height: metrics.cellSize.height)
+      let window = NSWindow(
+        contentRect: bounds, styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      defer { window.close() }
+      let view = NativeTerminalSurfaceView(frame: bounds)
+      window.contentView = view
+      let bytes = try imageBytes(left: .white, right: .white)
+      func surface(_ background: SwiftTUIRuntime.Color, opacity: Double) -> RasterSurface {
+        RasterSurface(
+          size: .init(width: 8, height: 1),
+          cells: [
+            Array(
+              repeating: RasterCell(character: " ", style: .init(backgroundColor: background)),
+              count: 8)
+          ],
+          imageAttachments: [
+            .init(
+              identity: Identity(components: ["view-damage"]),
+              bounds: rect(x: 0, width: 8), source: .data(bytes), isResizable: true,
+              opacity: opacity)
+          ])
+      }
+      try withContext(columns: 8) { context, _, _ in
+        var painted: [CGRect] = []
+        view.onDrawRect = { [weak view] rect in
+          guard let view else { return }
+          painted.append(rect)
+          NSGraphicsContext.saveGraphicsState()
+          NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+          NativeRasterSurfaceRenderer.draw(
+            surface: view.surface, style: .default, metrics: metrics,
+            bounds: bounds, dirtyRect: rect, context: context)
+          NSGraphicsContext.restoreGraphicsState()
+        }
+        defer { view.onDrawRect = nil }
+        view.present(surface: surface(.init(red: 0, green: 0, blue: 1), opacity: 0.25), damage: nil)
+        view.displayIfNeeded()
+        #expect(!painted.isEmpty)
+        let before = NSBitmapImageRep(cgImage: try #require(context.makeImage()))
+        painted.removeAll()
+        view.present(
+          surface: surface(.init(red: 1, green: 0, blue: 0), opacity: 0.75),
+          damage: .init(textRows: [.init(row: 0, columnRanges: [0..<1, 7..<8])]))
+        view.displayIfNeeded()
+        #expect(painted.count == 2)
+        let after = NSBitmapImageRep(cgImage: try #require(context.makeImage()))
+        let y = Int(bounds.height / 2)
+        for column in 0..<8 {
+          let x = Int((CGFloat(column) + 0.5) * metrics.cellSize.width)
+          let old = try #require(before.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+          let new = try #require(after.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+          #expect(old.alphaComponent > 0.9)
+          if column == 0 || column == 7 {
+            #expect(new.redComponent > old.redComponent + 0.2)
+          } else {
+            #expect(new == old)
+          }
+        }
+      }
+    }
+
+    @Test(
+      "STUI-306: decoration patterns have distinct full and incremental pixels", arguments: [1, 2])
+    func decorationPatterns(scale: Int) throws {
+      let patterns: [TextLineStyle.Pattern] = [
+        .solid, .dot, .dash, .dashDot, .dashDotDot, .double, .curly,
+      ]
+      for strike in [false, true] {
+        var outputs: Set<Data> = []
+        for pattern in patterns {
+          let line = TextLineStyle(pattern: pattern, color: .init(red: 1, green: 0, blue: 0))
+          let cell = RasterCell(
+            character: " ",
+            style: ResolvedTextStyle(
+              foregroundColor: .init(red: 0, green: 1, blue: 0), backgroundColor: .init(white: 0),
+              underlineStyle: strike ? nil : line, strikethroughStyle: strike ? line : nil))
+          let surface = RasterSurface(
+            size: .init(width: 8, height: 1), cells: [Array(repeating: cell, count: 8)])
+          try withContext(columns: 8, scale: scale) { context, metrics, bounds in
+            NativeRasterSurfaceRenderer.draw(
+              surface: surface, style: .default, metrics: metrics,
+              bounds: bounds, dirtyRect: bounds, context: context)
+            let full = try pixels(context)
+            outputs.insert(full)
+            // Damage starts mid-pattern, and revisits the same pixels.
+            for column in [3, 5, 3] {
+              NativeRasterSurfaceRenderer.draw(
+                surface: surface, style: .default, metrics: metrics,
+                bounds: bounds,
+                dirtyRect: CGRect(
+                  x: CGFloat(column) * metrics.cellSize.width,
+                  y: 0, width: metrics.cellSize.width, height: bounds.height), context: context)
+            }
+            #expect(try pixels(context) == full)
+            let bitmap = NSBitmapImageRep(cgImage: try #require(context.makeImage()))
+            var redRows: Set<Int> = []
+            for y in 0..<bitmap.pixelsHigh {
+              for x in 0..<bitmap.pixelsWide {
+                let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+                if color.redComponent > 0.4 {
+                  redRows.insert(y)
+                  #expect(color.redComponent > color.greenComponent)
+                }
+              }
+            }
+            #expect(!redRows.isEmpty)
+            if pattern == .double {
+              #expect((redRows.max()! - redRows.min()!) >= 2 * scale)
+            }
+          }
+        }
+        #expect(outputs.count == patterns.count)
+      }
+    }
+
     @Test("dirty cell lookup selects only intersecting cells and their wide lead")
     func sparseCellSelection() {
       let metrics = NativeTerminalMetrics(style: .default)

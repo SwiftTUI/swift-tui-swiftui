@@ -18,8 +18,7 @@ import SwiftTUIRuntime
 // `Sendable`-free of any UIKit/AppKit dependency and avoids a view/presenter
 // retain cycle.
 //
-// Split out of `NativeTerminalSurfaceView.swift`; behavior is identical to the
-// former per-platform copies. The type is `@MainActor`-isolated to match the
+// Split out of `NativeTerminalSurfaceView.swift`. The type is `@MainActor`-isolated to match the
 // isolation of the `NSView`/`UIView` shells it backs — the former per-platform
 // state and closures already ran exclusively on the main actor.
 
@@ -49,6 +48,67 @@ final class HostedSurfacePresenter {
   private var lastRequestedSurfaceGrid: CellSize?
   private var lastRequestedSurfaceCellPixelSize: PixelSize?
   private var confirmedSlack = HostedSurfaceConfirmedSlack()
+  private var pendingDisplay: DisplayInvalidation = .full
+  // Optional observation of the actual platform paint requests. Keeping the
+  // hook after drawing lets integration tests mirror paint into an inspectable
+  // bitmap without asking AppKit to redraw the view during snapshot capture.
+  var onDrawRect: ((CGRect) -> Void)?
+
+  func invalidateDisplay() {
+    pendingDisplay = .full
+  }
+
+  // Layer-backed views may receive the hull of several disjoint requests.
+  // Keep the exact requested region until paint consumes it; otherwise a
+  // translucent image in the gap can be recomposited without being damaged.
+  func draw(
+    style: SwiftUIHostTerminalStyle,
+    bounds: CGRect,
+    dirtyRect: CGRect,
+    context: CGContext
+  ) {
+    let rects: [CGRect]
+    switch pendingDisplay {
+    case .none, .full:
+      rects = [dirtyRect]
+      pendingDisplay = .none
+    case .rects(let pending):
+      rects = pending.map { $0.intersection(dirtyRect) }.filter { !$0.isNull && !$0.isEmpty }
+      let remaining = pending.flatMap { Self.subtract(dirtyRect, from: $0) }
+      pendingDisplay = remaining.isEmpty ? .none : remaining.count > 128 ? .full : .rects(remaining)
+    }
+    for rect in rects {
+      NativeRasterSurfaceRenderer.draw(
+        surface: surface, style: style, metrics: metrics,
+        bounds: bounds, dirtyRect: rect, context: context)
+      onDrawRect?(rect)
+    }
+  }
+
+  private static func subtract(_ painted: CGRect, from rect: CGRect) -> [CGRect] {
+    let overlap = rect.intersection(painted)
+    guard !overlap.isNull, !overlap.isEmpty else { return [rect] }
+    return [
+      CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: overlap.minY - rect.minY),
+      CGRect(x: rect.minX, y: overlap.maxY, width: rect.width, height: rect.maxY - overlap.maxY),
+      CGRect(
+        x: rect.minX, y: overlap.minY, width: overlap.minX - rect.minX, height: overlap.height),
+      CGRect(
+        x: overlap.maxX, y: overlap.minY, width: rect.maxX - overlap.maxX, height: overlap.height),
+    ].filter { !$0.isEmpty }
+  }
+
+  private func retainDisplay(_ display: DisplayInvalidation) {
+    switch (pendingDisplay, display) {
+    case (_, .full): pendingDisplay = .full
+    case (_, .none), (.full, _): break
+    case (.none, .rects(let rects)): pendingDisplay = rects.count > 128 ? .full : .rects(rects)
+    case (.rects(let old), .rects(let new)):
+      // A burst can conservatively repaint fully, but cannot retain an
+      // unbounded invalidation list while the view is detached or hidden.
+      pendingDisplay = old.count + new.count > 128 ? .full : .rects(old + new)
+    }
+  }
 
   // Recompute terminal metrics for a new style. Mirrors the former
   // `updateMetrics()`: the caller is responsible for applying the returned
@@ -58,6 +118,7 @@ final class HostedSurfacePresenter {
     bounds: CGSize,
     backingScale: CGFloat
   ) -> Invalidation {
+    invalidateDisplay()
     metrics = NativeTerminalMetrics(style: style)
     publishGridIfNeeded(bounds: bounds, backingScale: backingScale)
     return Invalidation(invalidatesNegotiatedSize: true)
@@ -84,6 +145,7 @@ final class HostedSurfacePresenter {
       damage: damage,
       bounds: bounds
     )
+    retainDisplay(invalidation.display)
     return invalidation
   }
 
@@ -135,6 +197,7 @@ final class HostedSurfacePresenter {
 
     lastPublishedLayoutGrid = grid
     lastPublishedLayoutCellPixelSize = cellPixelSize
+    invalidateDisplay()
     publishSurfaceGridIfNeeded(grid, cellPixelSize: cellPixelSize)
   }
 
@@ -218,14 +281,14 @@ final class HostedSurfacePresenter {
   }
 }
 
-private extension CGSize {
-  init(_ size: HostLengthSize) {
+extension CGSize {
+  fileprivate init(_ size: HostLengthSize) {
     self.init(width: CGFloat(size.width), height: CGFloat(size.height))
   }
 }
 
-private extension HostLengthSize {
-  init(_ size: CGSize) {
+extension HostLengthSize {
+  fileprivate init(_ size: CGSize) {
     self.init(width: Double(size.width), height: Double(size.height))
   }
 }

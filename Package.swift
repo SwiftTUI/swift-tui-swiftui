@@ -66,7 +66,6 @@ let package = Package(
       name: "SwiftUIHostTests",
       dependencies: [
         "SwiftUIHost",
-        .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),
       ],

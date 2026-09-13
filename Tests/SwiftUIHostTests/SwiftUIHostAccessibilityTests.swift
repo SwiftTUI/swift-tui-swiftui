@@ -1,5 +1,5 @@
 import CoreGraphics
-import SwiftTUI
+import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 
