@@ -119,9 +119,11 @@ final class HostedSurfacePresenter {
     backingScale: CGFloat
   ) -> Invalidation {
     invalidateDisplay()
-    metrics = NativeTerminalMetrics(style: style)
+    let nextMetrics = NativeTerminalMetrics(style: style)
+    let geometryChanged = metrics.cellSize != nextMetrics.cellSize
+    metrics = nextMetrics
     publishGridIfNeeded(bounds: bounds, backingScale: backingScale)
-    return Invalidation(invalidatesNegotiatedSize: true)
+    return Invalidation(invalidatesNegotiatedSize: geometryChanged)
   }
 
   func present(

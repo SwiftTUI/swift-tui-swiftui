@@ -10,6 +10,88 @@ import Testing
 
   @MainActor
   struct NativeRasterDamageTests {
+    @Test("STUI-209: palette changes repaint without renegotiating unchanged cell geometry")
+    func paletteDirtyReasonQualification() throws {
+      try withContext(columns: 2) { context, metrics, bounds in
+        let presenter = HostedSurfacePresenter()
+        let surface = RasterSurface(
+          size: .init(width: 2, height: 1), cells: [[RasterCell(character: "W"), .empty]])
+        _ = presenter.present(surface: surface, damage: nil, bounds: bounds)
+        _ = presenter.updateMetrics(style: .default, bounds: bounds.size, backingScale: 1)
+        var resizeCallbacks = 0
+        var layoutInvalidations = 0
+        presenter.onResize = { _, _ in resizeCallbacks += 1 }
+        var style = SwiftUIHostTerminalStyle.default
+        for index in 0..<48 {
+          style.palette.background = .init(red: Double(index) / 48, green: 0, blue: 0.5)
+          let invalidation = presenter.updateMetrics(
+            style: style, bounds: bounds.size, backingScale: 1)
+          if invalidation.invalidatesNegotiatedSize { layoutInvalidations += 1 }
+          presenter.draw(style: style, bounds: bounds, dirtyRect: bounds, context: context)
+          let actual = try pixels(context)
+          try withContext(columns: 2) { reference, _, _ in
+            NativeRasterSurfaceRenderer.draw(
+              surface: surface, style: style, metrics: metrics,
+              bounds: bounds, dirtyRect: bounds, context: reference)
+            let expected = try pixels(reference)
+            #expect(expected == actual)
+          }
+        }
+        print(
+          "DIRTY-QUALIFICATION paletteChanges=48 layoutInvalidations=\(layoutInvalidations) resizeCallbacks=\(resizeCallbacks)"
+        )
+        #expect(layoutInvalidations == 0)
+        #expect(resizeCallbacks == 0)
+        style.fontSize = 30
+        #expect(
+          presenter.updateMetrics(style: style, bounds: bounds.size, backingScale: 1)
+            .invalidatesNegotiatedSize)
+        #expect(resizeCallbacks == 1)
+      }
+    }
+
+    @Test("STUI-320: measure native full-text painting and its cell clip operations")
+    func clipCostQualification() throws {
+      try withContext(columns: 160, rows: 60) { context, metrics, bounds in
+        let surface = RasterSurface(
+          size: .init(width: 160, height: 60),
+          cells: Array(
+            repeating: Array(repeating: RasterCell(character: "W"), count: 160), count: 60))
+        var full: [Double] = []
+        var clips: [Double] = []
+        for iteration in 0..<25 {
+          var start = ContinuousClock.now
+          NativeRasterSurfaceRenderer.draw(
+            surface: surface, style: .default, metrics: metrics,
+            bounds: bounds, dirtyRect: bounds, context: context)
+          context.flush()
+          var elapsed = start.duration(to: .now).components
+          if iteration >= 5 {
+            full.append(Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15)
+          }
+          start = .now
+          for row in 0..<60 {
+            for column in 0..<160 {
+              context.saveGState()
+              context.clip(
+                to: CGRect(
+                  x: CGFloat(column) * metrics.cellSize.width,
+                  y: CGFloat(row) * metrics.cellSize.height, width: metrics.cellSize.width,
+                  height: metrics.cellSize.height))
+              context.restoreGState()
+            }
+          }
+          elapsed = start.duration(to: .now).components
+          if iteration >= 5 {
+            clips.append(Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15)
+          }
+        }
+        print(
+          "CLIP-QUALIFICATION fullMs=\(full.sorted()[10]) isolatedClipMs=\(clips.sorted()[10]) clips=9600"
+        )
+      }
+    }
+
     @Test("pending damage survives split callbacks and repeated presentations; bursts are bounded")
     func pendingDamageLifecycle() throws {
       try withContext(columns: 8) { context, metrics, bounds in
@@ -390,12 +472,12 @@ import Testing
     }
 
     private func withContext(
-      columns: Int, scale: Int = 1,
+      columns: Int, rows: Int = 1, scale: Int = 1,
       body: (CGContext, NativeTerminalMetrics, CGRect) throws -> Void
     ) throws {
       let metrics = NativeTerminalMetrics(style: .default)
       let width = Int(metrics.cellSize.width) * columns * scale
-      let height = Int(metrics.cellSize.height) * scale
+      let height = Int(metrics.cellSize.height) * rows * scale
       let bitmap = unsafe CGContext(
         data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
         space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -411,7 +493,7 @@ import Testing
         context, metrics,
         CGRect(
           x: 0, y: 0, width: metrics.cellSize.width * CGFloat(columns),
-          height: metrics.cellSize.height
+          height: metrics.cellSize.height * CGFloat(rows)
         ))
     }
 

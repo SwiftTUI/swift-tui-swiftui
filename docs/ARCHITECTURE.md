@@ -20,6 +20,8 @@ because the platform may deliver their bounding rectangle. More than 128 pending
 rectangles conservatively requests a full paint. Integration tests drive real
 NSWindow/UIWindow view invalidation and mirror the executed paint rectangles
 into a bitmap; they do not claim window-server screenshot coverage.
+Style changes always repaint. They invalidate negotiated size only when the
+measured cell dimensions change; palette-only updates retain size negotiation.
 
 Images outside the dirty region are rejected before lookup. Images retain their
 original placement under a visible-bounds clip; blend payloads already cropped to
