@@ -46,7 +46,7 @@ Cocoa wrappers finish releasing when the current autorelease pool drains).
 
 A presenter creates its blend compositor only when needed and retires it with
 its caches. The released runtime separately bounds decoded sources at 128 MiB
-and blend variants at 256 entries, 4 million decoded pixels and 16 MiB of encoded
+and blend variants at 256 entries, 4,194,304 decoded pixels and 16 MiB of encoded
 bytes plus metadata. The adapter passes captured bytes through that existing
 SPI, so file replacement is correct even against the released runtime's older
 path-keyed cache. No pre-tag API is required by this package's default build.
