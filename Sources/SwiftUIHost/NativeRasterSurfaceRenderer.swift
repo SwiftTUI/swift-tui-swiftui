@@ -24,16 +24,17 @@ import Foundation
 // adapters it uses live in `NativeTerminalPlatformAdapters.swift`.
 
 enum NativeRasterSurfaceRenderer {
-  private static let imageBlendCompositor = ImageBlendCompositor()
-
+  @MainActor
   static func draw(
     surface: RasterSurface?,
     style: SwiftUIHostTerminalStyle,
     metrics: NativeTerminalMetrics,
     bounds: CGRect,
     dirtyRect: CGRect,
-    context: CGContext
+    context: CGContext,
+    imageCache: NativeImageCache? = nil
   ) {
+    let imageCache = imageCache ?? NativeImageCache()
     let dirtyBounds = bounds.intersection(dirtyRect)
     guard !dirtyBounds.isNull, !dirtyBounds.isEmpty else {
       return
@@ -89,7 +90,8 @@ enum NativeRasterSurfaceRenderer {
         style: style,
         metrics: metrics,
         dirtyRect: dirtyBounds,
-        context: context
+        context: context,
+        imageCache: imageCache
       )
     }
   }
@@ -401,12 +403,14 @@ enum NativeRasterSurfaceRenderer {
     context.restoreGState()
   }
 
+  @MainActor
   private static func drawImageAttachment(
     _ attachment: RasterImageAttachment,
     style: SwiftUIHostTerminalStyle,
     metrics: NativeTerminalMetrics,
     dirtyRect: CGRect,
-    context: CGContext
+    context: CGContext,
+    imageCache: NativeImageCache
   ) {
     let bounds = attachment.visibleBounds
     guard !bounds.isEmpty, !attachment.bounds.isEmpty else {
@@ -423,7 +427,8 @@ enum NativeRasterSurfaceRenderer {
       return
     }
     // Geometry rejection precedes file/data lookup and blend preparation.
-    guard let resolved = nativeImage(for: attachment, style: style) else { return }
+    guard let resolved = imageCache.image(for: attachment, background: style.palette.background)
+    else { return }
     let placement = CGRect(
       x: CGFloat(resolved.bounds.origin.x) * metrics.cellSize.width,
       y: CGFloat(resolved.bounds.origin.y) * metrics.cellSize.height,
@@ -439,22 +444,4 @@ enum NativeRasterSurfaceRenderer {
     resolved.image.drawTerminalImage(in: placement, opacity: CGFloat(attachment.opacity))
   }
 
-  private static func nativeImage(
-    for attachment: RasterImageAttachment,
-    style: SwiftUIHostTerminalStyle
-  ) -> (image: NativePlatformImage, bounds: CellRect)? {
-    if attachment.compositing != nil,
-      let payload = imageBlendCompositor.encodedPNGPayload(
-        for: attachment,
-        fallbackBackground: style.palette.background
-      ),
-      let image = NativePlatformImage.terminalImage(from: .data(payload.bytes))
-    {
-      // The encoded blend payload is already cropped to visibleBounds.
-      return (image, attachment.visibleBounds)
-    }
-
-    guard let image = NativePlatformImage.terminalImage(from: attachment.source) else { return nil }
-    return (image, attachment.bounds)
-  }
 }

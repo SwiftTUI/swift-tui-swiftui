@@ -26,9 +26,31 @@ measured cell dimensions change; palette-only updates retain size negotiation.
 Images outside the dirty region are rejected before lookup. Images retain their
 original placement under a visible-bounds clip; blend payloads already cropped to
 visible bounds use that cropped placement. AppKit/UIKit applies typed attachment
-opacity after lookup. The blend compositor caches by content identity; ordinary
-file/data image lookup still constructs a platform image for each intersecting
-draw. The damage clip prevents translucent replay from changing untouched pixels.
+opacity after lookup. Each presenter owns a `NativeImageCache`: 128 encoded
+source owners within 32 MiB and 128 eagerly decoded CGImages within 64 MiB.
+Both stores evict least-recently-used entries. Encoded bytes and estimated entry
+metadata count toward the source budget; CGImage row bytes times height, encoded
+bytes and metadata count toward the decoded budget. Oversized entries remain
+usable for the current draw without cache admission. Platform image wrappers
+are temporary; the retained bitmap has one eagerly decoded first frame and
+respects encoded orientation.
+
+An immutable source owner supplies identity independently of placement and
+opacity. Embedded byte keys use a bounded sample for hashing and exact equality
+for collisions. File keys include device, inode, size, and nanosecond modification
+and change times; reads verify the revision before and after capture. Resolved
+file/data references are authoritative. A replaced file or changed animation
+frame receives a new owner; an unchanged source avoids rereading and decoding.
+Clearing the surface or retiring the presenter releases its stores (temporary
+Cocoa wrappers finish releasing when the current autorelease pool drains).
+
+A presenter creates its blend compositor only when needed and retires it with
+its caches. The released runtime separately bounds decoded sources at 128 MiB
+and blend variants at 256 entries, 4 million decoded pixels and 16 MiB of encoded
+bytes plus metadata. The adapter passes captured bytes through that existing
+SPI, so file replacement is correct even against the released runtime's older
+path-keyed cache. No pre-tag API is required by this package's default build.
+The damage clip prevents translucent replay from changing untouched pixels.
 
 ## The lockstep `@_spi` contract
 

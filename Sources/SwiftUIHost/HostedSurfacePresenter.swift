@@ -38,6 +38,7 @@ final class HostedSurfacePresenter {
     var display: DisplayInvalidation = .none
   }
 
+  let imageCache = NativeImageCache()
   private(set) var surface: RasterSurface?
   var preferredGridSize: CellSize?
   var onResize: ((CellSize, PixelSize?) -> Void)?
@@ -80,7 +81,7 @@ final class HostedSurfacePresenter {
     for rect in rects {
       NativeRasterSurfaceRenderer.draw(
         surface: surface, style: style, metrics: metrics,
-        bounds: bounds, dirtyRect: rect, context: context)
+        bounds: bounds, dirtyRect: rect, context: context, imageCache: imageCache)
       onDrawRect?(rect)
     }
   }
@@ -133,6 +134,7 @@ final class HostedSurfacePresenter {
   ) -> Invalidation {
     let previousSize = self.surface?.size
     self.surface = surface
+    if surface == nil { imageCache.removeAll() }
     confirmedSlack.update(
       preferredGridSize: preferredGridSize,
       renderedGridSize: surface?.size

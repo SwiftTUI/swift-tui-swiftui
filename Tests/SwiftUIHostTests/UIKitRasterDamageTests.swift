@@ -51,6 +51,7 @@ import Testing
           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
       context.translateBy(x: 0, y: bounds.height)
       context.scaleBy(x: 1, y: -1)
+      let imageCache = NativeImageCache()
       var painted: [CGRect] = []
       view.onDrawRect = { [weak view] rect in
         guard let view else { return }
@@ -58,7 +59,7 @@ import Testing
         UIGraphicsPushContext(context)
         NativeRasterSurfaceRenderer.draw(
           surface: view.surface, style: .default, metrics: metrics,
-          bounds: bounds, dirtyRect: rect, context: context)
+          bounds: bounds, dirtyRect: rect, context: context, imageCache: imageCache)
         UIGraphicsPopContext()
       }
       defer { view.onDrawRect = nil }
@@ -73,6 +74,7 @@ import Testing
         damage: .init(textRows: [.init(row: 0, columnRanges: [0..<1, 7..<8])]))
       view.layer.displayIfNeeded()
       #expect(painted.count == 2)
+      #expect(imageCache.decodeCount == 1)
       let after = try #require(context.makeImage())
       let newBytes = [UInt8](try #require(after.dataProvider?.data as Data?))
       for column in 0..<8 {

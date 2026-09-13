@@ -315,19 +315,22 @@ import Testing
         size: CellSize(width: 2, height: 1), cells: [[.empty, .empty]],
         imageAttachments: [attachment]
       )
+      let cache = NativeImageCache()
       try withContext(columns: 2, scale: scale) { context, metrics, bounds in
         NativeRasterSurfaceRenderer.draw(
           surface: surface, style: .default, metrics: metrics,
-          bounds: bounds, dirtyRect: bounds, context: context
+          bounds: bounds, dirtyRect: bounds, context: context, imageCache: cache
         )
         let before = try pixels(context)
         for _ in 0..<4 {
           NativeRasterSurfaceRenderer.draw(
             surface: surface, style: .default, metrics: metrics, bounds: bounds,
-            dirtyRect: CGRect(origin: .zero, size: metrics.cellSize), context: context
+            dirtyRect: CGRect(origin: .zero, size: metrics.cellSize), context: context,
+            imageCache: cache
           )
         }
         #expect(try pixels(context) == before)
+        #expect(cache.decodeCount == 1)
       }
     }
 
