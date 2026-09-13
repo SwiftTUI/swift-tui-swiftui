@@ -6,6 +6,12 @@ import Testing
 
 @testable import SwiftUIHost
 
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+  import AppKit
+#elseif canImport(UIKit)
+  import UIKit
+#endif
+
 @MainActor
 struct NativeImageCacheTests {
   @Test("STUI-469: placement, palette and alpha reuse decoded content; changed frames invalidate")
@@ -28,6 +34,64 @@ struct NativeImageCacheTests {
     image.source = .data(content.bytes)
     #expect(cache.image(for: image, background: .black) != nil)
     #expect(cache.decodeCount == 2)
+  }
+
+  @Test("a 160 by 60 image document reuses four decodes across full and partial native paint")
+  func imageDocumentQualification() throws {
+    let sources = try [CGFloat(0), 0.33, 0.66, 1].map { try png(red: $0) }
+    let images = (0..<100).map { index in
+      RasterImageAttachment(
+        identity: Identity(components: ["document", String(index)]),
+        bounds: .init(
+          origin: .init(x: (index % 20) * 8, y: (index / 20) * 12),
+          size: .init(width: 8, height: 12)), source: .data(sources[index % 4]), opacity: 0.5)
+    }
+    let surface = RasterSurface(
+      size: .init(width: 160, height: 60),
+      cells: Array(repeating: Array(repeating: .empty, count: 160), count: 60),
+      imageAttachments: images)
+    let metrics = NativeTerminalMetrics(style: .default)
+    let width = Int(metrics.cellSize.width * 160)
+    let height = Int(metrics.cellSize.height * 60)
+    let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+    let bitmap = unsafe CGContext(
+      data: nil, width: width, height: height, bitsPerComponent: 8,
+      bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    let context = try #require(bitmap)
+    context.translateBy(x: 0, y: CGFloat(height))
+    context.scaleBy(x: 1, y: -1)
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+      NSGraphicsContext.saveGraphicsState()
+      NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+      defer { NSGraphicsContext.restoreGraphicsState() }
+    #else
+      UIGraphicsPushContext(context)
+      defer { UIGraphicsPopContext() }
+    #endif
+    let cache = NativeImageCache()
+    NativeRasterSurfaceRenderer.draw(
+      surface: surface, style: .default, metrics: metrics,
+      bounds: bounds, dirtyRect: bounds, context: context, imageCache: cache)
+    let full = try #require(context.makeImage()?.dataProvider?.data as Data?)
+    for index in 0..<100 {
+      let dirty = CGRect(
+        x: CGFloat(index % 160) * metrics.cellSize.width,
+        y: CGFloat(index % 60) * metrics.cellSize.height,
+        width: metrics.cellSize.width, height: metrics.cellSize.height)
+      NativeRasterSurfaceRenderer.draw(
+        surface: surface, style: .default, metrics: metrics,
+        bounds: bounds, dirtyRect: dirty, context: context, imageCache: cache)
+    }
+    let partial = try #require(context.makeImage()?.dataProvider?.data as Data?)
+    #expect(partial == full)
+    #expect(cache.decodeCount == 4)
+    #expect(cache.sourceCount == 4)
+    #expect(cache.retainedSourceBytes <= 32 * 1024 * 1024)
+    #expect(cache.retainedDecodedBytes <= 64 * 1024 * 1024)
+    print(
+      "IMAGE-CACHE-QUALIFICATION grid=160x60 attachments=100 partialPaints=100 decodes=\(cache.decodeCount) sourceBytes=\(cache.retainedSourceBytes) decodedBytes=\(cache.retainedDecodedBytes) equalPixels=true"
+    )
   }
 
   @Test(
