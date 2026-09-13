@@ -4,7 +4,7 @@
 
 ![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%2015%2B%20%C2%B7%20iOS%2018%2B-1E90FF)
-![Status](https://img.shields.io/badge/status-0.13.2%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-beta-DAA520)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
 
 `swift-tui-swiftui` is the native Apple-platform host for
@@ -45,6 +45,12 @@ SwiftUIHostAppView(
 The button appears only when no text-input control is focused. Text-input
 controls continue to present the keyboard automatically when focused.
 
+For touch interfaces, keep primary actions visible and provide enough space to
+tap them. The shared tree can read `pointerInputCapabilities.supportsScrollPanning`
+to select touch-oriented control sizes and navigation while keeping the same
+model and actions. See
+[Adapting an Interface to Its Host](https://swifttui.sh/docs/documentation/swifttuiviews/adapting-to-hosts).
+
 ## Why use it
 
 - **One app, five hosts.** Code authored against SwiftTUI runs unchanged as a
@@ -67,6 +73,14 @@ controls continue to present the keyboard automatically when focused.
 - **Styled to match your app.** `SwiftUIHostTerminalStyle` controls font size,
   palette, theme, and cursor, so the hosted surface inherits your app's
   look instead of standing out as a console.
+
+## Drawing on the native surface
+
+The presenter preserves authored image order, opacity, and shape clipping while
+reusing source image content and decoded bitmaps within bounded caches. Text
+decorations retain their patterns across partial redraws. These are rendering
+behaviors of the shared surface; application views use the ordinary SwiftTUI
+drawing APIs. See [architecture](docs/ARCHITECTURE.md) for cache and damage rules.
 
 ## Installation
 
