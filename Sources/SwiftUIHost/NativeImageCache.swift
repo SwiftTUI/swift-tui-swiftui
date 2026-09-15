@@ -45,7 +45,7 @@ final class NativeImageCache {
 
     static func read(_ path: String) -> Self? {
       var info = stat()
-      guard unsafe path.withCString({ unsafe stat($0, &info) }) == 0 else { return nil }
+      guard path.withCString({ unsafe stat($0, &info) }) == 0 else { return nil }
       return Self(
         device: info.st_dev, inode: info.st_ino, size: info.st_size,
         modified: info.st_mtimespec.tv_sec, modifiedNanos: info.st_mtimespec.tv_nsec,

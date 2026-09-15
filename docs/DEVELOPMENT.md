@@ -2,7 +2,7 @@
 
 ## Toolchain
 
-Swift 6.3 via `swiftly` (`swiftly run swift ...`). The package imports
+Swift 6.4 via `swiftly` (`swiftly run swift ...`). The package imports
 SwiftUI/AppKit/UIKit, so it builds on macOS (and iOS via Xcode) only; the
 package graph excludes it from Linux.
 

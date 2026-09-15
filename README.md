@@ -2,7 +2,7 @@
 
 **Embed a SwiftTUI app inside a native SwiftUI view on macOS and iOS, with keyboard, pointer, clipboard, and a native semantic accessibility overlay and no `NSViewRepresentable`/`UIViewRepresentable` glue to write.**
 
-![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)
+![Swift 6.4](https://img.shields.io/badge/Swift-6.4-F05138?logo=swift&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%2015%2B%20%C2%B7%20iOS%2018%2B-1E90FF)
 ![Status](https://img.shields.io/badge/status-beta-DAA520)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
@@ -92,8 +92,8 @@ consumed in lockstep.
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.13.3"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.13.3"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.13.4"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.13.4"),
 ],
 targets: [
   .executableTarget(
@@ -134,7 +134,7 @@ clone it and open its SwiftUI window without Xcode via
 
 | | |
 | --- | --- |
-| Swift toolchain | Swift 6.3 (`swift-tools-version: 6.3`) |
+| Swift toolchain | Swift 6.4 (`swift-tools-version: 6.4`) |
 | Platforms | macOS 15+, iOS 18+. The package imports SwiftUI/AppKit/UIKit, so the package graph excludes it from Linux. |
 
 This package is the Apple-platform sibling of

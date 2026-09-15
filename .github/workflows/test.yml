@@ -72,9 +72,9 @@ jobs:
           path: |
             ~/.swiftly
             ~/Library/Developer/Toolchains
-          key: ${{ runner.os }}-swiftly-toolchain-${{ hashFiles('.swift-version') }}
+          key: ${{ runner.os }}-swiftly-1.1.4-toolchain-${{ hashFiles('.swift-version') }}
           restore-keys: |
-            ${{ runner.os }}-swiftly-toolchain-
+            ${{ runner.os }}-swiftly-1.1.4-toolchain-
 
       - name: Install swiftly and Swift toolchain
         shell: bash

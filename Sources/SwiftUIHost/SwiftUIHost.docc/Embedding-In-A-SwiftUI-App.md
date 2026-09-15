@@ -40,8 +40,8 @@ released and consumed in lockstep.
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.13.3"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.13.3"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.13.4"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.13.4"),
 ],
 targets: [
   .executableTarget(
@@ -102,5 +102,5 @@ window opens without Xcode via
 
 ## Requirements
 
-Swift 6.3+, macOS 15+ or iOS 18+. The package imports SwiftUI/AppKit/UIKit,
+Swift 6.4+, macOS 15+ or iOS 18+. The package imports SwiftUI/AppKit/UIKit,
 so the package graph excludes it from Linux.

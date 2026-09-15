@@ -127,9 +127,9 @@ struct NativeImageCacheTests {
     var cache: NativeImageCache? = NativeImageCache(
       maxEntries: 1, sourceBytes: 4096, decodedBytes: 4096)
     let first = try attachment(red: 1)
-    weak var retired = cache?.content(for: first)
+    weak let retired = cache?.content(for: first)
     #expect(autoreleasepool { cache?.image(for: first, background: .black) != nil })
-    weak var retiredBitmap = cache?.retainedBitmap
+    weak let retiredBitmap = cache?.retainedBitmap
     let second = try attachment(red: 0)
     #expect(autoreleasepool { cache?.image(for: second, background: .black) != nil })
     #expect(retired == nil)
@@ -138,8 +138,8 @@ struct NativeImageCacheTests {
     #expect(cache?.decodedCount == 1)
     #expect(try #require(cache?.retainedSourceBytes) <= 4096)
     #expect(try #require(cache?.retainedDecodedBytes) <= 4096)
-    weak var disposed = cache?.content(for: second)
-    weak var disposedBitmap = cache?.retainedBitmap
+    weak let disposed = cache?.content(for: second)
+    weak let disposedBitmap = cache?.retainedBitmap
     cache = nil
     #expect(disposed == nil)
     #expect(disposedBitmap == nil)
