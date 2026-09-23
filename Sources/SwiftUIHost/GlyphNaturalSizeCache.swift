@@ -1,6 +1,6 @@
 import CoreGraphics
-import Foundation
 import SwiftTUIRuntime
+import Synchronization
 
 /// Memoizes natural glyph sizes for `NativeTerminalMetrics`.
 ///
@@ -18,15 +18,14 @@ import SwiftTUIRuntime
 /// app's glyph repertoire is small, so the bound should never be reached in
 /// practice. If it is, the cache resets wholesale rather than tracking
 /// recency.
-final class GlyphNaturalSizeCache: @unchecked Sendable {
-  private struct Key: Hashable {
+final class GlyphNaturalSizeCache: Sendable {
+  private struct Key: Hashable, Sendable {
     let character: Character
     let emphasis: UInt8
   }
 
   private let capacity: Int
-  private let lock = NSLock()
-  private var sizes: [Key: CGSize] = [:]
+  private let sizes = Mutex<[Key: CGSize]>([:])
 
   init(capacity: Int = 4096) {
     self.capacity = capacity
@@ -43,21 +42,19 @@ final class GlyphNaturalSizeCache: @unchecked Sendable {
   ) -> CGSize {
     let key = Key(character: character, emphasis: emphasis.rawValue)
 
-    lock.lock()
-    let cached = sizes[key]
-    lock.unlock()
+    let cached = sizes.withLock { $0[key] }
     if let cached {
       return cached
     }
 
     let measured = measure()
 
-    lock.lock()
-    if sizes.count >= capacity {
-      sizes.removeAll(keepingCapacity: true)
+    sizes.withLock { cache in
+      if cache.count >= capacity {
+        cache.removeAll(keepingCapacity: true)
+      }
+      cache[key] = measured
     }
-    sizes[key] = measured
-    lock.unlock()
     return measured
   }
 }
