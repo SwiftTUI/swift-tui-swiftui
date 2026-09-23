@@ -171,3 +171,8 @@ Use the pinned toolchain through `swiftly`, not bare `swift`. See
 ## License
 
 MIT; see [LICENSE](LICENSE).
+
+The semantic accessibility overlay excludes hidden nodes. Live and imperative
+announcements preserve Unicode text, normalize control characters to spaces,
+and omit hidden live regions. This presentation behavior does not establish
+VoiceOver action support or a completed assistive-technology acceptance journey.

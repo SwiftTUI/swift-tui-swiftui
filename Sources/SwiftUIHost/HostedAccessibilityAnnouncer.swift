@@ -57,7 +57,7 @@ struct HostedAccessibilityAnnouncer: Equatable {
     in nodes: [AccessibilityNode]
   ) -> [LiveRegionCandidate] {
     nodes.compactMap { node in
-      guard let politeness = node.liveRegion,
+      guard !node.hidden, let politeness = node.liveRegion,
         politeness != .off,
         let label = sanitized(node.label)
       else {
@@ -122,13 +122,10 @@ struct HostedAccessibilityAnnouncer: Equatable {
       switch scalar.value {
       case 0x20:
         appendSpaceIfNeeded()
-      case 0x21...0x7E:
-        scalars.append(scalar)
-        previousWasSpace = false
-      case 0x09, 0x0A, 0x0B, 0x0C, 0x0D:
+      case 0x00...0x1F, 0x7F...0x9F, 0x2028, 0x2029:
         appendSpaceIfNeeded()
       default:
-        scalars.append(Unicode.Scalar(0x3F)!)
+        scalars.append(scalar)
         previousWasSpace = false
       }
     }

@@ -121,7 +121,7 @@ func host_announcer_sanitizes_live_region_labels() {
     ])
   )
 
-  #expect(output == [.init(politeness: .polite, label: "Loaded ?")])
+  #expect(output == [.init(politeness: .polite, label: "Loaded ✓")])
 }
 
 @MainActor
@@ -140,7 +140,7 @@ func host_announcer_emits_imperative_announcements_without_live_region_baseline(
 
   #expect(
     output == [
-      .init(politeness: .assertive, label: "Saved ?"),
+      .init(politeness: .assertive, label: "Saved ✓"),
       .init(politeness: .polite, label: "Queued"),
     ])
 }
@@ -163,4 +163,20 @@ private func liveNode(
     label: label,
     liveRegion: politeness
   )
+}
+
+@MainActor
+@Test
+func host_announcer_preserves_unicode_and_ignores_hidden_regions() {
+  var announcer = HostedAccessibilityAnnouncer()
+  _ = announcer.announcements(
+    for: snapshot([liveNode("status", label: "Loading", politeness: .polite)]))
+  var hidden = liveNode("status", label: "Hidden", politeness: .assertive)
+  hidden.hidden = true
+  #expect(announcer.announcements(for: snapshot([hidden])).isEmpty)
+  let output = announcer.announcements(
+    for: SemanticSnapshot(accessibilityAnnouncements: [
+      .init(message: "保存済み\u{001B} ✓", politeness: .polite)
+    ]))
+  #expect(output == [.init(politeness: .polite, label: "保存済み ✓")])
 }

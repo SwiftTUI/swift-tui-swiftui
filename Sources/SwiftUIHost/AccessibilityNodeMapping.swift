@@ -75,7 +75,7 @@ enum AccessibilityNodeMapper {
     focusedIdentity: Identity?,
     cellSize: CGSize
   ) -> AccessibilityNodeMapping? {
-    guard let frame = frame(for: node.rect, cellSize: cellSize) else {
+    guard !node.hidden, let frame = frame(for: node.rect, cellSize: cellSize) else {
       return nil
     }
 

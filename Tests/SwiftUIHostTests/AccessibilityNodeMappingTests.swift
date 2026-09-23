@@ -206,3 +206,15 @@ private func identity(
 ) -> Identity {
   Identity(components: [value])
 }
+
+@MainActor
+@Test
+func node_mapper_excludes_hidden_semantic_nodes() {
+  var node = AccessibilityNode(
+    identity: Identity(components: ["hidden"]),
+    rect: .init(origin: .zero, size: .init(width: 2, height: 1)), role: .button, label: "Hidden")
+  node.hidden = true
+  #expect(
+    AccessibilityNodeMapper.mapping(
+      for: node, focusedIdentity: node.identity, cellSize: CGSize(width: 8, height: 16)) == nil)
+}
