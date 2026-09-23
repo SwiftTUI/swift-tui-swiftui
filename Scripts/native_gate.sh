@@ -26,7 +26,9 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 if command -v swiftly >/dev/null 2>&1; then
-  exec swiftly run swift test
+  # Use the same native SwiftPM builder as the framework gate. Swift Build's
+  # macOS 26 test bundle failed to load with a missing _swift_initBorrow symbol.
+  exec swiftly run swift test --build-system native
 fi
 
-exec swift test
+exec swift test --build-system native
