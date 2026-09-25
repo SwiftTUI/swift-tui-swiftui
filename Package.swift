@@ -47,7 +47,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
-      exact: "0.14.0"
+      exact: "0.15.0"
     ),
     // Collections 1.7 emits Swift 6.4 borrow-runtime references that fail to
     // load on our macOS 26 CI floor. Constrain the framework's open range.
