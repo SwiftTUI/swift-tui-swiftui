@@ -48,12 +48,7 @@ let package = Package(
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
       exact: "0.15.1"
-    ),
-    // Collections 1.7.0 emits Swift 6.4 borrow-runtime references that fail
-    // to load on macOS 26 (apple/swift-collections#733). The framework caps
-    // its own range the same way; mirror it as a range, not an exact pin, so
-    // apps that also depend on swift-collections can still resolve.
-    .package(url: "https://github.com/apple/swift-collections.git", "1.6.0"..<"1.7.0"),
+    )
   ],
   targets: [
     .target(
