@@ -92,8 +92,8 @@ consumed in lockstep.
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.17.0"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.17.0"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.18.0"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.18.0"),
 ],
 targets: [
   .executableTarget(
