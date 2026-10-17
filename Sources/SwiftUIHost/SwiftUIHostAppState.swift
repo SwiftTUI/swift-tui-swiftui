@@ -1,5 +1,5 @@
-public import Observation
 public import CoreGraphics
+public import Observation
 import SwiftTUIRuntime
 
 public struct SwiftUIHostSceneDescriptor: Identifiable, Hashable, Sendable {
@@ -48,14 +48,13 @@ public final class SwiftUIHostAppState<A: SwiftTUIRuntime.App> {
     style: SwiftUIHostTerminalStyle = .default
   ) throws {
     let manifest = SceneManifest(for: app)
-    guard !manifest.scenes.isEmpty else {
+    guard let defaultSceneID = manifest.scenes.first?.id else {
       throw AppLaunchError.noScenes
     }
 
     scenes = manifest.scenes.map(SwiftUIHostSceneDescriptor.init)
     self.style = style
 
-    let defaultSceneID = manifest.defaultSceneID
     self.selectedSceneID =
       selectedSceneID.flatMap { requestedID in
         manifest.scenes.contains(where: { $0.id == requestedID })
