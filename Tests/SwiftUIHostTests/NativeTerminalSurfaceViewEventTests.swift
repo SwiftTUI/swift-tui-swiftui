@@ -508,6 +508,60 @@ import Testing
       ])
   }
 
+  // Wave-2 regression hunt, part CA (STUI-1165): neighbours of the STUI-1216
+  // accumulator and the STUI-1217 sign. Cases w2ca019-w2ca021.
+
+  @MainActor
+  @Test
+  func w2ca019_clamped_axis_does_not_disturb_the_other_axis_carry() {
+    let probe = ScrollProbe()
+    let cell = probe.cell
+
+    probe.scroll(
+      scrollEvent(scrollingDeltaX: 40 * cell.width, scrollingDeltaY: -(cell.height - 1)))
+    probe.scroll(scrollEvent(scrollingDeltaY: -1))
+
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: -16, deltaY: 0),
+        .scrolled(deltaX: 0, deltaY: 1),
+      ])
+  }
+
+  @MainActor
+  @Test
+  func w2ca020_precise_gesture_horizontal_direction_and_reversal() {
+    let probe = ScrollProbe()
+    let width = probe.cell.width
+
+    probe.scroll(scrollEvent(scrollingDeltaX: -2 * width, phase: .changed))
+    probe.scroll(scrollEvent(scrollingDeltaX: 3 * width, phase: .changed))
+
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: 2, deltaY: 0),
+        .scrolled(deltaX: -3, deltaY: 0),
+      ])
+  }
+
+  @MainActor
+  @Test
+  func w2ca021_point_and_line_travel_share_one_carry() {
+    let probe = ScrollProbe()
+    let height = probe.cell.height
+
+    probe.scroll(scrollEvent(scrollingDeltaY: -(height - 1)))
+    #expect(probe.scrolls.isEmpty)
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: -1))
+    probe.scroll(scrollEvent(scrollingDeltaY: -1))
+
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: 0, deltaY: 1),
+        .scrolled(deltaX: 0, deltaY: 1),
+      ])
+  }
+
   @MainActor
   private func windowPoint(
     forLocal local: NSPoint,

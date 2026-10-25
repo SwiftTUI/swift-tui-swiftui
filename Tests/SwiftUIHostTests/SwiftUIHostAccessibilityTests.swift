@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
@@ -404,5 +405,158 @@ private struct RuntimeFocusTable: View {
 extension RasterSurface {
   fileprivate var renderedText: String {
     lines.joined(separator: "\n")
+  }
+}
+
+// Wave-2 regression hunt, part CA (STUI-1165): neighbours of the STUI-1211
+// runtime-focus adoption. Cases w2ca016-w2ca018.
+@MainActor
+@Suite(.serialized)
+struct Wave2RegressionHuntAccessibilityTests {
+  // The second of two duplicate siblings is the focused element, so the
+  // overlay's requested native focus value must name it alone.
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func w2ca016_duplicate_sibling_focus_names_one_native_element() async throws {
+    let harness = try RuntimeFocusHarness(app: HuntDuplicateButtonsApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Same")
+    let first = try #require(harness.focusedIdentity)
+    await harness.sendKey(.tab) { $0.focusedIdentity != $1.focusedIdentity }
+    let second = try #require(harness.focusedIdentity)
+    #expect(second != first)
+
+    let overlay = harness.overlay
+    #expect(overlay.mappings.filter(\.isFocused).count == 1)
+    let requested = try #require(overlay.requestedNativeFocusID)
+    let carriers = overlay.mappings.filter { $0.id == requested }.count
+    w2HuntKnown(
+      """
+      NEW-4: focusing the second of two duplicate siblings requests a native focus id that \
+      both overlay elements carry; mapping ids are the occurrence-free identity path while \
+      runtimeFocusIdentity keeps the occurrence, so accessibilityFocused(_:equals:) binds two \
+      elements to the requested value; contract: Divergences-And-Gaps.md:1064-1067, SwiftUI \
+      ForEach identifier uniqueness; adjacent STUI-1211
+      """
+    ) {
+      #expect(carriers == 1, "\(carriers) overlay elements carry the requested focus id")
+    }
+  }
+
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func w2ca017_sectioned_list_row_focus_crosses_sections() async throws {
+    let harness = try RuntimeFocusHarness(app: HuntSectionedListApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Row 1")
+    var seen = [try huntExpectSelectionButtonFocus(harness)]
+    for _ in 0..<2 {
+      await harness.sendKey(.arrowDown) { $0.focusedIdentity != $1.focusedIdentity }
+      seen.append(try huntExpectSelectionButtonFocus(harness))
+    }
+    #expect(Set(seen).count == 3, "\(seen)")
+  }
+
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func w2ca018_multi_selection_list_row_focus() async throws {
+    let harness = try RuntimeFocusHarness(app: HuntMultiSelectionListApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Pick 1")
+    let first = try huntExpectSelectionButtonFocus(harness)
+    await harness.sendKey(.arrowDown) { $0.focusedIdentity != $1.focusedIdentity }
+    let second = try huntExpectSelectionButtonFocus(harness)
+    #expect(first != second)
+  }
+}
+
+/// Exactly one mapping is focused; it is a row selection button and the
+/// overlay requests native focus on it. Returns its id.
+@MainActor
+private func huntExpectSelectionButtonFocus(
+  _ harness: RuntimeFocusHarness,
+  sourceLocation: SourceLocation = #_sourceLocation
+) throws -> String {
+  let overlay = harness.overlay
+  let focused = overlay.mappings.filter(\.isFocused)
+  #expect(focused.count == 1, sourceLocation: sourceLocation)
+  let mapping = try #require(focused.first, sourceLocation: sourceLocation)
+  #expect(mapping.role == .button, sourceLocation: sourceLocation)
+  #expect(mapping.label?.hasPrefix("Select row") == true, sourceLocation: sourceLocation)
+  #expect(overlay.requestedNativeFocusID == mapping.id, sourceLocation: sourceLocation)
+  return mapping.id
+}
+
+/// Preserves an unmarked reproduction while guarding only confirmed assertions.
+private func w2HuntKnown(_ comment: Comment, _ body: () -> Void) {
+  if ProcessInfo.processInfo.environment["SWIFTTUI_W2HUNT_UNMARKED"] == "1" {
+    body()
+  } else {
+    withKnownIssue(comment) { body() }
+  }
+}
+
+@MainActor
+private struct HuntDuplicateButtonsApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      VStack(alignment: .leading, spacing: 0) {
+        ForEach(["Same", "Same"], id: \.self) { title in
+          Button(title) {}
+        }
+      }
+    }
+  }
+}
+
+@MainActor
+private struct HuntSectionedListApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      HuntSectionedList()
+    }
+  }
+}
+
+private struct HuntSectionedList: View {
+  @State private var selected: Int? = nil
+
+  var body: some View {
+    List(selection: $selected) {
+      Section("First") {
+        ForEach(1..<3, id: \.self) { index in
+          Text("Row \(index)").tag(index)
+        }
+      }
+      Section("Second") {
+        ForEach(3..<5, id: \.self) { index in
+          Text("Row \(index)").tag(index)
+        }
+      }
+    }
+  }
+}
+
+@MainActor
+private struct HuntMultiSelectionListApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      HuntMultiSelectionList()
+    }
+  }
+}
+
+private struct HuntMultiSelectionList: View {
+  @State private var selected: Set<Int> = []
+
+  var body: some View {
+    List(selection: $selected) {
+      ForEach(1..<4, id: \.self) { index in
+        Text("Pick \(index)").tag(index)
+      }
+    }
   }
 }
