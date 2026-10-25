@@ -306,17 +306,9 @@ private final class RuntimeFocusHarness {
       !focused.contains { $0.hasSuffix("/AccessibilityListItem") },
       sourceLocation: sourceLocation)
     #expect(focused.count <= 1, sourceLocation: sourceLocation)
-    // The mapper matches `node.identity` only. The row's focus identity is the
-    // selection button's action identity, which swift-tui 0.19.2 keeps at
-    // `package` access, out of this package's reach.
-    withKnownIssue(
-      "STUI-1211: the SwiftUI host cannot match a List row's action identity",
-      sourceLocation: sourceLocation
-    ) {
-      #expect(
-        overlay.requestedNativeFocusID == selection.identity.path, sourceLocation: sourceLocation)
-      #expect(focused == [selection.identity.path], sourceLocation: sourceLocation)
-    }
+    #expect(
+      overlay.requestedNativeFocusID == selection.identity.path, sourceLocation: sourceLocation)
+    #expect(focused == [selection.identity.path], sourceLocation: sourceLocation)
   }
 
   /// A Table's runtime focus is the table node itself; row selection moves

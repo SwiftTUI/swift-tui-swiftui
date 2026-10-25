@@ -1,5 +1,5 @@
 import CoreGraphics
-import SwiftTUIRuntime
+@_spi(Runners) import SwiftTUIRuntime
 import SwiftUI
 
 struct AccessibilityNodeMapping: Equatable {
@@ -91,7 +91,7 @@ enum AccessibilityNodeMapper {
       hint: node.hint,
       traits: roleMapping.traits,
       controlKind: roleMapping.controlKind,
-      isFocused: node.identity == focusedIdentity,
+      isFocused: node.runtimeFocusIdentity == focusedIdentity,
       liveRegion: node.liveRegion
     )
   }
