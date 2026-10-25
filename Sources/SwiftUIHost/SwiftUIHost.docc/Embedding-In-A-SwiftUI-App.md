@@ -40,8 +40,8 @@ released and consumed in lockstep.
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.19.3"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.19.3"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.19.4"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.19.4"),
 ],
 targets: [
   .executableTarget(
@@ -71,8 +71,9 @@ Import `SwiftUIHost`. The main integration types are:
 
 Keyboard, pointer, and clipboard events are bridged between AppKit/UIKit and
 the SwiftTUI runtime. The native accessibility overlay presents roles,
-labels, hints, and runtime focus to VoiceOver; assistive-origin focus and
-control actions are not yet routed back into SwiftTUI in 0.9. The terminal
+labels, hints, enabled state, and runtime focus to VoiceOver;
+assistive-origin focus and control actions are not yet routed back into
+SwiftTUI in 0.9. The terminal
 font is bundled. Scrolling follows the platform: on iOS a scroll view pans
 when you drag it, while on macOS a press-drag stays a click-drag.
 
