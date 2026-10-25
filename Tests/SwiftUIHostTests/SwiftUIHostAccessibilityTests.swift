@@ -1,6 +1,5 @@
 import CoreGraphics
-import Foundation
-import SwiftTUIRuntime
+@_spi(Runners) import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 
@@ -180,6 +179,85 @@ struct SwiftUIHostAccessibilityTests {
 
     await harness.sendKey(.arrowDown) { $0.raster != $1.raster }
     try harness.expectTableFocus()
+  }
+
+  // STUI-1256: reported identities are occurrence-free, so duplicate siblings share
+  // `identity.path`. SwiftUI's `ForEach` and `accessibilityFocused(_:equals:)` need one
+  // element per value, so every overlay element gets a distinct id: the first keeps the
+  // path and a later one takes its runtime focus identity, which keeps the occurrence. The
+  // focus request then names the focused element alone (w3ca22, w3ca23).
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func duplicate_sibling_overlay_ids_keep_the_occurrence() async throws {
+    let harness = try RuntimeFocusHarness(app: HuntDuplicateButtonsApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Same")
+    let nodes = try #require(harness.host.latestSemanticSnapshot?.accessibilityNodes)
+    let buttons = nodes.filter { $0.role == .button && $0.label == "Same" }
+    try #require(buttons.count == 2)
+    #expect(buttons[0].identity == buttons[1].identity)
+    #expect(buttons[1].runtimeFocusIdentity.path.hasSuffix(##"ID["Same"#1]"##))
+    #expect(harness.focusedIdentity == buttons[0].runtimeFocusIdentity)
+
+    let overlay = harness.overlay
+    let ids = overlay.mappings.map(\.id)
+    #expect(Set(ids).count == ids.count, "\(ids)")
+    let buttonIDs = overlay.mappings.filter { $0.role == .button && $0.label == "Same" }.map(\.id)
+    #expect(buttonIDs == [buttons[0].identity.path, buttons[1].runtimeFocusIdentity.path])
+    let duplicatedPath = buttons[0].identity.path
+    #expect(
+      overlay.mappings.filter { $0.identity.path != duplicatedPath }.allSatisfy {
+        $0.id == $0.identity.path
+      })
+    let requested = try #require(overlay.requestedNativeFocusID)
+    #expect(ids.filter { $0 == requested } == [buttons[0].identity.path])
+  }
+
+  // STUI-1256: duplicate List rows report one selection-button path, while their action
+  // identities are distinct row identities (w3ca24).
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func duplicate_list_row_selectors_get_distinct_overlay_ids() async throws {
+    let harness = try RuntimeFocusHarness(app: DuplicateRowsListApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Same")
+    await harness.sendKey(.arrowDown) { $0.focusedIdentity != $1.focusedIdentity }
+    let overlay = harness.overlay
+    let ids = overlay.mappings.map(\.id)
+    #expect(Set(ids).count == ids.count, "\(ids)")
+    #expect(overlay.mappings.filter(\.isFocused).map(\.label) == ["Select row 2"])
+    let requested = try #require(overlay.requestedNativeFocusID)
+    #expect(overlay.mappings.filter { $0.id == requested }.map(\.label) == ["Select row 2"])
+  }
+
+  // STUI-1256: the overlay presents each node's enabled state. A disabled control and a
+  // disabled List row's selection button are presented disabled, as the browser host does
+  // (w3ca27).
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func overlay_presents_disabled_controls_disabled() async throws {
+    let harness = try RuntimeFocusHarness(app: DisabledControlsApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Row 3")
+    let nodes = try #require(harness.host.latestSemanticSnapshot?.accessibilityNodes)
+    let mappings = harness.overlay.mappings
+    func isEnabled(_ label: String) -> Bool? {
+      mappings.first { $0.label == label }?.isEnabled
+    }
+    #expect(isEnabled("On") == true)
+    #expect(isEnabled("Off") == false)
+    #expect(isEnabled("Select row 1") == true)
+    #expect(isEnabled("Select row 2") == false)
+    #expect(isEnabled("Select row 3") == true)
+    for mapping in mappings {
+      let node = nodes.first {
+        $0.identity == mapping.identity && $0.role == mapping.role && $0.label == mapping.label
+      }
+      #expect(mapping.isEnabled == node?.isEnabled, "\(mapping.id)")
+    }
   }
 }
 
@@ -382,6 +460,50 @@ private struct RuntimeFocusButtonsApp: SwiftTUIRuntime.App {
 }
 
 @MainActor
+private struct DuplicateRowsListApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      DuplicateRowsList()
+    }
+  }
+}
+
+private struct DuplicateRowsList: View {
+  @State private var selected: String? = nil
+
+  var body: some View {
+    List(["Same", "Same"], id: \.self, selection: $selected) { name in
+      Text(name)
+    }
+  }
+}
+
+@MainActor
+private struct DisabledControlsApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      DisabledControls()
+    }
+  }
+}
+
+private struct DisabledControls: View {
+  @State private var selected: Int? = nil
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Button("On") {}
+      Button("Off") {}.disabled(true)
+      List(selection: $selected) {
+        ForEach(1..<4, id: \.self) { index in
+          Text("Row \(index)").tag(index).disabled(index == 2)
+        }
+      }
+    }
+  }
+}
+
+@MainActor
 private struct RuntimeFocusTableApp: SwiftTUIRuntime.App {
   var body: some SwiftTUIRuntime.Scene {
     WindowGroup("Main", id: "main") {
@@ -414,7 +536,7 @@ extension RasterSurface {
 @Suite(.serialized)
 struct Wave2RegressionHuntAccessibilityTests {
   // The second of two duplicate siblings is the focused element, so the
-  // overlay's requested native focus value must name it alone.
+  // overlay's requested native focus value must name it alone (repaired by STUI-1256).
   @MainActor
   @Test(.timeLimit(.minutes(1)))
   func w2ca016_duplicate_sibling_focus_names_one_native_element() async throws {
@@ -431,17 +553,7 @@ struct Wave2RegressionHuntAccessibilityTests {
     #expect(overlay.mappings.filter(\.isFocused).count == 1)
     let requested = try #require(overlay.requestedNativeFocusID)
     let carriers = overlay.mappings.filter { $0.id == requested }.count
-    w2HuntKnown(
-      """
-      NEW-4: focusing the second of two duplicate siblings requests a native focus id that \
-      both overlay elements carry; mapping ids are the occurrence-free identity path while \
-      runtimeFocusIdentity keeps the occurrence, so accessibilityFocused(_:equals:) binds two \
-      elements to the requested value; contract: Divergences-And-Gaps.md:1064-1067, SwiftUI \
-      ForEach identifier uniqueness; adjacent STUI-1211
-      """
-    ) {
-      #expect(carriers == 1, "\(carriers) overlay elements carry the requested focus id")
-    }
+    #expect(carriers == 1, "\(carriers) overlay elements carry the requested focus id")
   }
 
   @MainActor
@@ -488,15 +600,6 @@ private func huntExpectSelectionButtonFocus(
   #expect(mapping.label?.hasPrefix("Select row") == true, sourceLocation: sourceLocation)
   #expect(overlay.requestedNativeFocusID == mapping.id, sourceLocation: sourceLocation)
   return mapping.id
-}
-
-/// Preserves an unmarked reproduction while guarding only confirmed assertions.
-private func w2HuntKnown(_ comment: Comment, _ body: () -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_W2HUNT_UNMARKED"] == "1" {
-    body()
-  } else {
-    withKnownIssue(comment) { body() }
-  }
 }
 
 @MainActor

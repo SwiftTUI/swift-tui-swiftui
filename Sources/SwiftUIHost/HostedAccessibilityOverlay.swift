@@ -60,6 +60,7 @@ private struct HostedAccessibilityElement: SwiftUI.View {
       .accessibilityIdentifier(mapping.id)
       .accessibilityAddTraits(mapping.swiftUITraits)
       .accessibilitySortPriority(sortPriority)
+      .disabled(!mapping.isEnabled)
       .accessibilityFocused(nativeFocusedElementID, equals: mapping.id)
   }
 }

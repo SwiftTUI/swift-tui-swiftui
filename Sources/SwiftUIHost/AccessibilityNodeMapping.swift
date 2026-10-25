@@ -32,6 +32,7 @@ struct AccessibilityNodeMapping: Equatable {
   let controlKind: ControlKind
   let isFocused: Bool
   let liveRegion: AccessibilityPoliteness?
+  let isEnabled: Bool
 
   var swiftUITraits: SwiftUI.AccessibilityTraits {
     var traits: SwiftUI.AccessibilityTraits = []
@@ -49,6 +50,25 @@ struct AccessibilityNodeMapping: Equatable {
     }
     return traits
   }
+
+  /// The same element under another overlay identifier.
+  func withID(_ id: String) -> Self {
+    Self(
+      id: id,
+      identity: identity,
+      parentIdentity: parentIdentity,
+      frame: frame,
+      role: role,
+      roleDescription: roleDescription,
+      label: label,
+      hint: hint,
+      traits: traits,
+      controlKind: controlKind,
+      isFocused: isFocused,
+      liveRegion: liveRegion,
+      isEnabled: isEnabled
+    )
+  }
 }
 
 enum AccessibilityNodeMapper {
@@ -61,12 +81,47 @@ enum AccessibilityNodeMapper {
       return []
     }
 
-    return snapshot.accessibilityNodes.compactMap { node in
+    let mapped = snapshot.accessibilityNodes.compactMap { node in
       mapping(
         for: node,
         focusedIdentity: focusedIdentity,
         cellSize: cellSize
-      )
+      ).map { (node: node, mapping: $0) }
+    }
+    return withDistinctIDs(mapped)
+  }
+
+  /// Gives every overlay element its own identifier. SwiftUI's `ForEach` and
+  /// `accessibilityFocused(_:equals:)` need one element per value, but reported
+  /// identities are occurrence-free, so duplicate siblings share `identity.path`.
+  /// The first mapping with a path keeps it. A later one takes its runtime focus
+  /// identity, which keeps the occurrence (`ID["Same"#1]`), or else the path with its
+  /// occurrence ordinal. Every reported path is reserved first, so a qualified
+  /// identifier never takes another element's path.
+  private static func withDistinctIDs(
+    _ mapped: [(node: AccessibilityNode, mapping: AccessibilityNodeMapping)]
+  ) -> [AccessibilityNodeMapping] {
+    var taken = Set(mapped.map(\.mapping.id))
+    guard taken.count < mapped.count else {
+      return mapped.map(\.mapping)
+    }
+
+    var occurrences: [String: Int] = [:]
+    return mapped.map { node, mapping in
+      let occurrence = occurrences[mapping.id, default: 0]
+      occurrences[mapping.id] = occurrence + 1
+      guard occurrence > 0 else {
+        return mapping
+      }
+
+      var id = node.runtimeFocusIdentity.path
+      var ordinal = occurrence
+      while taken.contains(id) {
+        id = "\(mapping.id)#\(ordinal)"
+        ordinal += 1
+      }
+      taken.insert(id)
+      return mapping.withID(id)
     }
   }
 
@@ -92,7 +147,8 @@ enum AccessibilityNodeMapper {
       traits: roleMapping.traits,
       controlKind: roleMapping.controlKind,
       isFocused: node.runtimeFocusIdentity == focusedIdentity,
-      liveRegion: node.liveRegion
+      liveRegion: node.liveRegion,
+      isEnabled: node.isEnabled
     )
   }
 

@@ -206,6 +206,38 @@ func overlay_mapping_handles_empty_and_zero_rect_trees() {
   #expect(zeroRect.mappings.isEmpty)
 }
 
+// STUI-1256: every overlay element has a distinct id. A node whose runtime focus identity
+// is its reported identity (here, a public node with no action identity) takes its path with
+// an occurrence ordinal, and a qualified id never takes another node's reported path
+// (w3ca25, w3ca26).
+@MainActor
+@Test
+func overlay_ids_are_distinct_for_duplicate_reported_identities() {
+  let overlay = HostedAccessibilityOverlay(
+    semanticSnapshot: SemanticSnapshot(
+      accessibilityNodes: [node("same"), node("same"), node("same"), node("other")]
+    ),
+    focusedIdentity: nil,
+    cellSize: .init(width: 8, height: 16)
+  )
+
+  #expect(overlay.mappings.map(\.id) == ["same", "same#1", "same#2", "other"])
+}
+
+@MainActor
+@Test
+func overlay_ids_never_take_another_nodes_reported_path() {
+  let overlay = HostedAccessibilityOverlay(
+    semanticSnapshot: SemanticSnapshot(
+      accessibilityNodes: [node("a"), node("a"), node("a#1")]
+    ),
+    focusedIdentity: nil,
+    cellSize: .init(width: 8, height: 16)
+  )
+
+  #expect(overlay.mappings.map(\.id) == ["a", "a#2", "a#1"])
+}
+
 private func node(
   _ id: String,
   rect: CellRect = .init(origin: .zero, size: .init(width: 1, height: 1))

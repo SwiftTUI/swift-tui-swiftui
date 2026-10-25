@@ -49,6 +49,7 @@ private func mapping(
     traits: [.button],
     controlKind: .action,
     isFocused: isFocused,
-    liveRegion: nil
+    liveRegion: nil,
+    isEnabled: true
   )
 }
