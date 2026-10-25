@@ -1,3 +1,4 @@
+import CoreGraphics
 import SwiftTUIRuntime
 import Testing
 
@@ -177,7 +178,7 @@ import Testing
     view.scrollWheel(
       with: scrollEvent(
         location: point,
-        scrollingDeltaX: 0,
+        units: .line,
         scrollingDeltaY: -3
       )
     )
@@ -305,6 +306,160 @@ import Testing
     #expect(resizes == [probeGrid])
   }
 
+  // STUI-1216: AppKit reports precise scrolling (trackpad, Magic Mouse and
+  // momentum) in points and discrete wheels in lines; the runtime's scroll
+  // deltas are whole terminal cells (`ScrollWheelEvent`). The rule matches
+  // the browser host: points divide by the presented cell pitch, a line is one
+  // cell, sub-cell travel carries until it reverses, and each axis of one
+  // record is bounded to 16 cells.
+  @MainActor
+  @Test
+  func native_surface_view_converts_precise_points_to_cells() {
+    let probe = ScrollProbe()
+
+    probe.scroll(scrollEvent(scrollingDeltaY: -3 * probe.cell.height))
+
+    #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 3)])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_carries_sub_cell_points_and_drops_carry_on_reversal() {
+    let probe = ScrollProbe()
+    let height = probe.cell.height
+
+    probe.scroll(scrollEvent(scrollingDeltaY: -(height - 1)))
+    #expect(probe.scrolls.isEmpty)
+    probe.scroll(scrollEvent(scrollingDeltaY: -1))
+    #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 1)])
+
+    probe.events.removeAll()
+    probe.scroll(scrollEvent(scrollingDeltaY: -(height - 1)))
+    probe.scroll(scrollEvent(scrollingDeltaY: (height / 2).rounded(.down)))
+    probe.scroll(scrollEvent(scrollingDeltaY: -(height - 1)))
+    #expect(probe.scrolls.isEmpty, "a reversal drops the opposing sub-cell carry")
+    probe.scroll(scrollEvent(scrollingDeltaY: -1))
+    #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 1)])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_bounds_each_axis_to_sixteen_cells() {
+    let probe = ScrollProbe()
+
+    probe.scroll(scrollEvent(scrollingDeltaY: -40 * probe.cell.height))
+    probe.scroll(scrollEvent(scrollingDeltaY: -1))
+    #expect(
+      probe.scrolls == [.scrolled(deltaX: 0, deltaY: 16)],
+      "clamped travel is discarded, not carried")
+
+    probe.events.removeAll()
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: -25))
+    #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 16)])
+
+    probe.events.removeAll()
+    probe.scroll(scrollEvent(scrollingDeltaX: 40 * probe.cell.width))
+    #expect(probe.scrolls.map(\.horizontalMagnitude) == [16])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_carries_fractional_wheel_lines() {
+    let probe = ScrollProbe()
+
+    for _ in 0..<3 {
+      probe.scroll(scrollEvent(units: .line, scrollingDeltaY: -0.25))
+    }
+    #expect(probe.scrolls.isEmpty)
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: -0.25))
+    #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 1)])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_converts_horizontal_points_by_cell_width() {
+    let probe = ScrollProbe()
+    let cell = probe.cell
+
+    probe.scroll(scrollEvent(scrollingDeltaX: 2 * cell.width, scrollingDeltaY: -cell.height))
+    #expect(probe.scrolls.map(\.horizontalMagnitude) == [2])
+    #expect(probe.scrolls.map(\.verticalDelta) == [1])
+
+    probe.events.removeAll()
+    probe.scroll(
+      scrollEvent(scrollingDeltaX: cell.width - 1, scrollingDeltaY: -(cell.height - 1)))
+    #expect(probe.scrolls.isEmpty)
+    probe.scroll(scrollEvent(scrollingDeltaX: 1))
+    #expect(probe.scrolls.map(\.horizontalMagnitude) == [1])
+    #expect(probe.scrolls.map(\.verticalDelta) == [0], "each axis carries independently")
+    probe.scroll(scrollEvent(scrollingDeltaY: -1))
+    #expect(probe.scrolls.map(\.verticalDelta) == [0, 1])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_converts_gesture_and_momentum_phases_alike() {
+    let probe = ScrollProbe()
+    let height = probe.cell.height
+
+    probe.scroll(scrollEvent(phase: .mayBegin))
+    probe.scroll(scrollEvent(scrollingDeltaY: -10, phase: .began))
+    #expect(probe.scrolls.isEmpty)
+    probe.scroll(scrollEvent(scrollingDeltaY: -10, phase: .changed))
+    probe.scroll(scrollEvent(phase: .ended))
+    #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 1)])
+
+    probe.scroll(scrollEvent(scrollingDeltaY: -2 * height, momentumPhase: .begin))
+    probe.scroll(scrollEvent(scrollingDeltaY: -2 * height, momentumPhase: .continuous))
+    probe.scroll(scrollEvent(momentumPhase: .end))
+    probe.scroll(scrollEvent(units: .line))
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: 0, deltaY: 1),
+        .scrolled(deltaX: 0, deltaY: 2),
+        .scrolled(deltaX: 0, deltaY: 2),
+      ])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_keeps_discrete_wheel_lines_as_cells() throws {
+    let probe = ScrollProbe()
+
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: 1))
+    // Option, not Shift: AppKit turns a Shift-held vertical wheel into
+    // horizontal scrolling before the view sees it.
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: -3, flags: .maskAlternate))
+
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: 0, deltaY: -1),
+        .scrolled(deltaX: 0, deltaY: 3),
+      ])
+    guard case .mouse(let modified) = try #require(probe.events.last) else {
+      Issue.record("expected a mouse event")
+      return
+    }
+    #expect(modified.modifiers == .alt)
+  }
+
+  // AppKit scroll views move their viewport left for a positive
+  // `scrollingDeltaX` and up for a positive `scrollingDeltaY`; the runtime's
+  // positive deltaX moves right. The host negates only the vertical axis.
+  @MainActor
+  @Test
+  func native_surface_view_horizontal_direction_follows_appkit_scroll_views() {
+    let probe = ScrollProbe()
+
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaX: 1))
+
+    withKnownIssue(
+      "Unfiled, adjacent to STUI-1216: the horizontal scroll direction is inverted"
+    ) {
+      #expect(probe.scrolls == [.scrolled(deltaX: -1, deltaY: 0)])
+    }
+  }
+
   @MainActor
   private func windowPoint(
     forLocal local: NSPoint,
@@ -353,21 +508,58 @@ import Testing
     )
   }
 
+  /// A scroll event as AppKit delivers it. Pixel units are precise
+  /// (`hasPreciseScrollingDeltas`) and report whole points; line units are a
+  /// discrete wheel and report (possibly fractional) lines.
   private func scrollEvent(
-    location: NSPoint,
-    scrollingDeltaX: CGFloat,
-    scrollingDeltaY: CGFloat
+    location: NSPoint = .zero,
+    units: CGScrollEventUnit = .pixel,
+    scrollingDeltaX: CGFloat = 0,
+    scrollingDeltaY: CGFloat = 0,
+    phase: CGScrollPhase? = nil,
+    momentumPhase: CGMomentumScrollPhase? = nil,
+    flags: CGEventFlags = []
   ) -> NSEvent {
     let event = CGEvent(
       scrollWheelEvent2Source: nil,
-      units: .pixel,
+      units: units,
       wheelCount: 2,
-      wheel1: Int32(scrollingDeltaY),
-      wheel2: Int32(scrollingDeltaX),
+      wheel1: Int32(scrollingDeltaY.rounded(.towardZero)),
+      wheel2: Int32(scrollingDeltaX.rounded(.towardZero)),
       wheel3: 0
     )!
+    if units == .line {
+      event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: scrollingDeltaY)
+      event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: scrollingDeltaX)
+    }
+    if let phase {
+      event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+    }
+    if let momentumPhase {
+      event.setIntegerValueField(
+        .scrollWheelEventMomentumPhase, value: Int64(momentumPhase.rawValue))
+    }
+    event.flags = flags
     event.location = location
     return NSEvent(cgEvent: event)!
+  }
+
+  /// A surface view at the default style that records the input it emits.
+  @MainActor
+  private final class ScrollProbe {
+    let view = NativeTerminalSurfaceView(frame: NSRect(x: 0, y: 0, width: 160, height: 80))
+    let cell = NativeTerminalMetrics(style: .default).cellSize
+    var events: [InputEvent] = []
+
+    init() {
+      view.onInputEvent = { [unowned self] in events.append($0) }
+    }
+
+    var scrolls: [MouseEvent.Kind] { events.compactMap(\.mouseKind) }
+
+    func scroll(_ event: NSEvent) {
+      view.scrollWheel(with: event)
+    }
   }
 
   private final class FirstResponderProbeView: NSView {
@@ -554,6 +746,76 @@ import Testing
     }
   }
 #endif
+
+// STUI-1216: the accumulator ports the browser host's wheel rule
+// (swift-tui-web STUI-1191 `wheelTravel` and `wholeWheelCells`).
+@Test
+func scroll_wheel_accumulator_matches_the_browser_rule() {
+  func step(
+    _ accumulator: inout NativeScrollWheelAccumulator,
+    _ travel: Double,
+    unit: NativeScrollWheelAccumulator.Unit = .lines
+  ) -> Int {
+    accumulator.cellDelta(horizontal: 0, vertical: travel, unit: unit).deltaY
+  }
+
+  var carry = NativeScrollWheelAccumulator()
+  #expect([0.4, 0.4, 0.4].map { step(&carry, $0) } == [0, 0, 1])
+  #expect(abs(carry.remainderY - 0.2) < 1e-9)
+
+  var reversal = NativeScrollWheelAccumulator()
+  #expect(step(&reversal, 0.9) == 0)
+  #expect(step(&reversal, -0.5) == 0)
+  #expect(reversal.remainderY == -0.5, "a reversal drops the opposing carry")
+  #expect(step(&reversal, 0.5) == 0)
+  #expect(reversal.remainderY == 0.5)
+
+  var bound = NativeScrollWheelAccumulator()
+  #expect(step(&bound, 16) == 16)
+  #expect(bound.remainderY == 0)
+  #expect(step(&bound, 16.9) == 16)
+  #expect(abs(bound.remainderY - 0.9) < 1e-9, "the bound applies above 16 whole cells")
+  var clamped = NativeScrollWheelAccumulator()
+  #expect(step(&clamped, 17.5) == 16)
+  #expect(clamped.remainderY == 0, "clamped travel is discarded")
+  #expect(step(&clamped, 0.2) == 0)
+  #expect(step(&clamped, -17) == -16)
+  #expect(clamped.remainderY == 0)
+  #expect(step(&clamped, .greatestFiniteMagnitude) == 16)
+
+  var nonfinite = NativeScrollWheelAccumulator()
+  #expect(step(&nonfinite, 0.5) == 0)
+  #expect(step(&nonfinite, .nan) == 0)
+  #expect(step(&nonfinite, .infinity) == 0)
+  #expect(nonfinite.remainderY == 0.5, "nonfinite travel neither scrolls nor drops the carry")
+
+  var points = NativeScrollWheelAccumulator()
+  let cell = CGSize(width: 8, height: 17)
+  #expect(
+    points.cellDelta(horizontal: 12, vertical: 34, unit: .points(cellSize: cell)) == (1, 2))
+  #expect(points.remainderX == 0.5)
+  #expect(
+    points.cellDelta(horizontal: 4, vertical: 0, unit: .points(cellSize: cell)) == (1, 0),
+    "each axis divides by its own pitch and carries independently")
+
+  var degenerate = NativeScrollWheelAccumulator()
+  #expect(
+    degenerate.cellDelta(horizontal: 3, vertical: -0.25, unit: .points(cellSize: .zero))
+      == (1, -1),
+    "a nonpositive pitch falls back to one cell in the delta's direction")
+}
+
+extension MouseEvent.Kind {
+  fileprivate var horizontalMagnitude: Int? {
+    guard case .scrolled(let deltaX, _) = self else { return nil }
+    return abs(deltaX)
+  }
+
+  fileprivate var verticalDelta: Int? {
+    guard case .scrolled(_, let deltaY) = self else { return nil }
+    return deltaY
+  }
+}
 
 extension InputEvent {
   fileprivate var mouseKind: MouseEvent.Kind? {

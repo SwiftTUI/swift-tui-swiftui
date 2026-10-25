@@ -13,6 +13,7 @@ import SwiftTUIRuntime
 
   final class NativeTerminalSurfaceView: NSView {
     private let presenter = HostedSurfacePresenter()
+    private var scrollWheelAccumulator = NativeScrollWheelAccumulator()
 
     var surface: RasterSurface? { presenter.surface }
 
@@ -153,8 +154,16 @@ import SwiftTUIRuntime
     }
 
     override func scrollWheel(with event: NSEvent) {
-      let deltaX = Int(event.scrollingDeltaX.rounded())
-      let deltaY = Int((-event.scrollingDeltaY).rounded())
+      // AppKit reports precise scrolling (trackpads, Magic Mouse, momentum) in
+      // points and discrete wheels in lines. Its positive vertical delta
+      // scrolls up; the runtime's moves down. An event without a whole cell of
+      // travel is still consumed.
+      let (deltaX, deltaY) = scrollWheelAccumulator.cellDelta(
+        horizontal: Double(event.scrollingDeltaX),
+        vertical: Double(-event.scrollingDeltaY),
+        unit: event.hasPreciseScrollingDeltas
+          ? .points(cellSize: presenter.metrics.cellSize) : .lines
+      )
       guard deltaX != 0 || deltaY != 0 else {
         return
       }
