@@ -443,9 +443,9 @@ import Testing
     #expect(modified.modifiers == .alt)
   }
 
-  // AppKit scroll views move their viewport left for a positive
+  // STUI-1217: AppKit scroll views move their viewport left for a positive
   // `scrollingDeltaX` and up for a positive `scrollingDeltaY`; the runtime's
-  // positive deltaX moves right. The host negates only the vertical axis.
+  // positive deltas move right and down, so both axes are negated.
   @MainActor
   @Test
   func native_surface_view_horizontal_direction_follows_appkit_scroll_views() {
@@ -453,11 +453,59 @@ import Testing
 
     probe.scroll(scrollEvent(units: .line, scrollingDeltaX: 1))
 
-    withKnownIssue(
-      "Unfiled, adjacent to STUI-1216: the horizontal scroll direction is inverted"
-    ) {
-      #expect(probe.scrolls == [.scrolled(deltaX: -1, deltaY: 0)])
+    #expect(probe.scrolls == [.scrolled(deltaX: -1, deltaY: 0)])
+  }
+
+  // STUI-1217: AppKit turns a Shift-held vertical wheel into horizontal
+  // scrolling; Shift with the wheel turned down scrolls right.
+  @MainActor
+  @Test
+  func native_surface_view_shift_wheel_scrolls_right_like_appkit() throws {
+    let probe = ScrollProbe()
+
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: -3, flags: .maskShift))
+
+    #expect(probe.scrolls == [.scrolled(deltaX: 3, deltaY: 0)])
+    guard case .mouse(let shifted) = try #require(probe.events.last) else {
+      Issue.record("expected a mouse event")
+      return
     }
+    #expect(shifted.modifiers == .shift)
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_converts_horizontal_momentum_in_appkit_direction() {
+    let probe = ScrollProbe()
+    let width = probe.cell.width
+
+    probe.scroll(scrollEvent(scrollingDeltaX: -2 * width, momentumPhase: .begin))
+    probe.scroll(scrollEvent(scrollingDeltaX: -2 * width, momentumPhase: .continuous))
+    probe.scroll(scrollEvent(momentumPhase: .end))
+
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: 2, deltaY: 0),
+        .scrolled(deltaX: 2, deltaY: 0),
+      ])
+  }
+
+  @MainActor
+  @Test
+  func native_surface_view_vertical_direction_is_unchanged_by_the_horizontal_fix() {
+    let probe = ScrollProbe()
+    let height = probe.cell.height
+
+    probe.scroll(scrollEvent(units: .line, scrollingDeltaY: 1))
+    probe.scroll(scrollEvent(scrollingDeltaY: -height))
+    probe.scroll(scrollEvent(scrollingDeltaY: -2 * height, momentumPhase: .begin))
+
+    #expect(
+      probe.scrolls == [
+        .scrolled(deltaX: 0, deltaY: -1),
+        .scrolled(deltaX: 0, deltaY: 1),
+        .scrolled(deltaX: 0, deltaY: 2),
+      ])
   }
 
   @MainActor

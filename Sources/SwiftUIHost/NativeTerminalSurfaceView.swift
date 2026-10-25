@@ -155,11 +155,11 @@ import SwiftTUIRuntime
 
     override func scrollWheel(with event: NSEvent) {
       // AppKit reports precise scrolling (trackpads, Magic Mouse, momentum) in
-      // points and discrete wheels in lines. Its positive vertical delta
-      // scrolls up; the runtime's moves down. An event without a whole cell of
-      // travel is still consumed.
+      // points and discrete wheels in lines. Its positive deltas scroll left
+      // and up, as its scroll views do; the runtime's move right and down. An
+      // event without a whole cell of travel is still consumed.
       let (deltaX, deltaY) = scrollWheelAccumulator.cellDelta(
-        horizontal: Double(event.scrollingDeltaX),
+        horizontal: Double(-event.scrollingDeltaX),
         vertical: Double(-event.scrollingDeltaY),
         unit: event.hasPreciseScrollingDeltas
           ? .points(cellSize: presenter.metrics.cellSize) : .lines
