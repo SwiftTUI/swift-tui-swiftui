@@ -238,6 +238,26 @@ func overlay_ids_never_take_another_nodes_reported_path() {
   #expect(overlay.mappings.map(\.id) == ["a", "a#2", "a#1"])
 }
 
+// STUI-1288: a runtime identity names its element when it keeps a duplicate-occurrence
+// qualifier, the generated `#<n>` suffix of an explicit-ID component. An authored `#` is
+// percent-escaped, and other components never carry the qualifier.
+@Test
+func overlay_recognizes_duplicate_occurrence_qualifiers() {
+  func carries(_ components: String...) -> Bool {
+    AccessibilityNodeMapper.carriesDuplicateOccurrence(Identity(components: components))
+  }
+
+  #expect(carries("App", ##"ID["Same"#1]"##))
+  #expect(carries("App", ##"ID["A"#12]"##, "HStack[1]"))
+  #expect(carries("App", "ID[3#2]", "List"))
+  #expect(!carries("App", ##"ID["Same"]"##))
+  #expect(!carries("App", ##"ID["a%231"]"##), "an authored # is escaped")
+  #expect(!carries("App", ##"ID["Same"#]"##))
+  #expect(!carries("App", ##"ID["Same"#1x]"##))
+  #expect(!carries("App", "Row#1", "ListRow[1]"))
+  #expect(!carries("ID[]"))
+}
+
 private func node(
   _ id: String,
   rect: CellRect = .init(origin: .zero, size: .init(width: 1, height: 1))

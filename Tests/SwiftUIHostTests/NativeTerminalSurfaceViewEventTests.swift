@@ -375,6 +375,25 @@ import Testing
     #expect(probe.scrolls == [.scrolled(deltaX: 0, deltaY: 1)])
   }
 
+  // STUI-1275: one-point precise deltas that add up to the cell height send the row on the
+  // event that completes it (w4s23).
+  @MainActor
+  @Test
+  func native_surface_view_sends_a_row_on_the_event_that_completes_it() {
+    let probe = ScrollProbe()
+    #expect(probe.cell.height == probe.cell.height.rounded(), "the cell height is whole points")
+    let height = Int(probe.cell.height)
+
+    var completing: [Int] = []
+    for event in 1...(2 * height) {
+      let before = probe.scrolls.count
+      probe.scroll(scrollEvent(scrollingDeltaY: -1))
+      if probe.scrolls.count != before { completing.append(event) }
+    }
+    #expect(completing == [height, 2 * height], "cell height \(height)")
+    #expect(probe.scrolls == Array(repeating: .scrolled(deltaX: 0, deltaY: 1), count: 2))
+  }
+
   @MainActor
   @Test
   func native_surface_view_converts_horizontal_points_by_cell_width() {
@@ -876,7 +895,7 @@ func scroll_wheel_accumulator_matches_the_browser_rule() {
   #expect(step(&bound, 16) == 16)
   #expect(bound.remainderY == 0)
   #expect(step(&bound, 16.9) == 16)
-  #expect(abs(bound.remainderY - 0.9) < 1e-9, "the bound applies above 16 whole cells")
+  #expect(bound.remainderY == 0, "travel beyond 16 cells is discarded (STUI-1274)")
   var clamped = NativeScrollWheelAccumulator()
   #expect(step(&clamped, 17.5) == 16)
   #expect(clamped.remainderY == 0, "clamped travel is discarded")
@@ -905,6 +924,102 @@ func scroll_wheel_accumulator_matches_the_browser_rule() {
     degenerate.cellDelta(horizontal: 3, vertical: -0.25, unit: .points(cellSize: .zero))
       == (1, -1),
     "a nonpositive pitch falls back to one cell in the delta's direction")
+}
+
+// STUI-1274: the 16-cell bound applies to the travel (the carry plus this event), not to its
+// truncation, so travel between 16 and 17 cells sends 16 and discards the rest (w4s13-w4s18).
+@Test
+func scroll_wheel_accumulator_bounds_the_travel_itself() {
+  func steps(
+    _ travel: [Double],
+    unit: NativeScrollWheelAccumulator.Unit = .lines
+  ) -> (cells: [Int], remainder: Double) {
+    var accumulator = NativeScrollWheelAccumulator()
+    let cells = travel.map { accumulator.cellDelta(horizontal: 0, vertical: $0, unit: unit).deltaY }
+    return (cells, accumulator.remainderY)
+  }
+  let rows = NativeScrollWheelAccumulator.Unit.points(cellSize: CGSize(width: 10, height: 27))
+
+  #expect(steps([16.5, 0.5]) == ([16, 0], 0.5), "the excess half cell is discarded")
+  #expect(steps([-16.5, -0.5]) == ([-16, 0], -0.5))
+  #expect(steps([445.5, 13.5], unit: rows) == ([16, 0], 0.5), "16.5 rows, then half a row")
+  #expect(steps([0.5, 15.75]) == ([0, 16], 0), "the carried half cell counts toward the bound")
+  #expect(steps([0.5, 15.75, 0.25]) == ([0, 16, 0], 0.25))
+
+  #expect(steps([16]) == ([16], 0), "exactly 16 cells is within the bound")
+  #expect(steps([-16]) == ([-16], 0))
+  #expect(steps([432, 13.5], unit: rows) == ([16, 0], 0.5))
+  let under = steps([15.9])
+  #expect(under.cells == [15])
+  #expect(abs(under.remainder - 0.9) < 1e-9, "travel under the bound carries")
+}
+
+// STUI-1275: the carry stays in the event's own unit, so deltas that add up to exactly one
+// pitch complete the cell on that event rather than one event late (w4s20-w4s22, w4s26).
+@Test
+func scroll_wheel_accumulator_lands_exact_multiples_of_the_pitch_on_their_own_event() {
+  func records(_ count: Int, of delta: Double, cell: CGSize) -> [String] {
+    var accumulator = NativeScrollWheelAccumulator()
+    return (1...count).compactMap { event in
+      let cells = accumulator.cellDelta(
+        horizontal: 0, vertical: delta, unit: .points(cellSize: cell)
+      ).deltaY
+      return cells == 0 ? nil : "\(event)=\(cells)"
+    }
+  }
+  #expect(records(28, of: 1, cell: CGSize(width: 10, height: 27)) == ["27=1"])
+  #expect(records(34, of: 0.5, cell: CGSize(width: 8, height: 16.5)) == ["33=1"])
+
+  // Every whole-point pitch from 1 to 41, one-point deltas on both axes.
+  for pitch in 1...40 {
+    let width = pitch
+    let height = pitch + 1
+    let cell = NativeScrollWheelAccumulator.Unit.points(
+      cellSize: CGSize(width: width, height: height))
+    var accumulator = NativeScrollWheelAccumulator()
+    var columns: [String] = []
+    var rows: [String] = []
+    for event in 1...(3 * height) {
+      let delta = accumulator.cellDelta(horizontal: 1, vertical: 1, unit: cell)
+      if delta.deltaX != 0 { columns.append("\(event)=\(delta.deltaX)") }
+      if delta.deltaY != 0 { rows.append("\(event)=\(delta.deltaY)") }
+    }
+    #expect(Array(columns.prefix(3)) == (1...3).map { "\($0 * width)=1" }, "width \(width)")
+    #expect(rows == (1...3).map { "\($0 * height)=1" }, "height \(height)")
+    #expect(accumulator.remainderY == 0, "height \(height)")
+  }
+
+  let rows = NativeScrollWheelAccumulator.Unit.points(cellSize: CGSize(width: 10, height: 27))
+  var reversal = NativeScrollWheelAccumulator()
+  #expect(
+    [20.0, -5, 27, 20, 7].map {
+      reversal.cellDelta(horizontal: 0, vertical: $0, unit: rows).deltaY
+    } == [0, 0, 1, 0, 1],
+    "a reversal drops the carried points")
+  #expect(reversal.remainderY == 0)
+}
+
+// The carry crosses a change of unit or pitch as a fraction of a cell, as the browser's carry
+// crosses delta modes (w4s24).
+@Test
+func scroll_wheel_accumulator_converts_the_carry_when_the_unit_or_pitch_changes() {
+  let rows27 = NativeScrollWheelAccumulator.Unit.points(cellSize: CGSize(width: 10, height: 27))
+  let rows16 = NativeScrollWheelAccumulator.Unit.points(cellSize: CGSize(width: 10, height: 16))
+  func pair(
+    _ first: (Double, NativeScrollWheelAccumulator.Unit),
+    _ second: (Double, NativeScrollWheelAccumulator.Unit)
+  ) -> (cells: [Int], remainder: Double) {
+    var accumulator = NativeScrollWheelAccumulator()
+    let cells = [first, second].map {
+      accumulator.cellDelta(horizontal: 0, vertical: $0.0, unit: $0.1).deltaY
+    }
+    return (cells, accumulator.remainderY)
+  }
+
+  #expect(pair((13.5, rows27), (0.5, .lines)) == ([0, 1], 0))
+  #expect(pair((13.5, rows27), (8, rows16)) == ([0, 1], 0))
+  #expect(pair((0.5, .lines), (13.5, rows27)) == ([0, 1], 0))
+  #expect(pair((13.5, rows27), (-0.25, .lines)) == ([0, 0], -0.25), "a reversal across units")
 }
 
 extension MouseEvent.Kind {

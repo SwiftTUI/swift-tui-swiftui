@@ -91,30 +91,44 @@ enum AccessibilityNodeMapper {
     return withDistinctIDs(mapped)
   }
 
-  /// Gives every overlay element its own identifier. SwiftUI's `ForEach` and
-  /// `accessibilityFocused(_:equals:)` need one element per value, but reported
+  /// Gives every overlay element its own identifier, derived from the element
+  /// itself, so it stays the same while its siblings enter and leave the
+  /// snapshot. SwiftUI's `ForEach` and `accessibilityFocused(_:equals:)` need
+  /// one element per value and a stable value per element, but reported
   /// identities are occurrence-free, so duplicate siblings share `identity.path`.
-  /// The first mapping with a path keeps it. A later one takes its runtime focus
-  /// identity, which keeps the occurrence (`ID["Same"#1]`), or else the path with its
-  /// occurrence ordinal. Every reported path is reserved first, so a qualified
-  /// identifier never takes another element's path.
+  ///
+  /// An element whose runtime focus identity keeps a duplicate occurrence
+  /// (`ID["Same"#1]`) is a later duplicate or lies inside one, and that
+  /// identity's path names it. Every other element is named by its reported
+  /// path, so unique elements and the first of duplicates keep it. Elements the
+  /// runtime does not tell apart (static text, a duplicate row's selector) can
+  /// still share a name: the first in snapshot order keeps it, and a later one
+  /// takes its runtime focus identity's path, or else the name with an
+  /// occurrence ordinal. Every reported path and every element's own name is
+  /// reserved first, so a fallback never takes another element's identifier.
   private static func withDistinctIDs(
     _ mapped: [(node: AccessibilityNode, mapping: AccessibilityNodeMapping)]
   ) -> [AccessibilityNodeMapping] {
-    var taken = Set(mapped.map(\.mapping.id))
-    guard taken.count < mapped.count else {
-      return mapped.map(\.mapping)
+    let named = mapped.map { node, mapping in
+      let runtimeIdentity = node.runtimeFocusIdentity
+      return runtimeIdentity != node.identity && carriesDuplicateOccurrence(runtimeIdentity)
+        ? mapping.withID(runtimeIdentity.path) : mapping
+    }
+    let names = Set(named.map(\.id))
+    guard names.count < named.count else {
+      return named
     }
 
+    var taken = names.union(mapped.map(\.mapping.id))
     var occurrences: [String: Int] = [:]
-    return mapped.map { node, mapping in
+    return zip(mapped, named).map { entry, mapping in
       let occurrence = occurrences[mapping.id, default: 0]
       occurrences[mapping.id] = occurrence + 1
       guard occurrence > 0 else {
         return mapping
       }
 
-      var id = node.runtimeFocusIdentity.path
+      var id = entry.node.runtimeFocusIdentity.path
       var ordinal = occurrence
       while taken.contains(id) {
         id = "\(mapping.id)#\(ordinal)"
@@ -122,6 +136,25 @@ enum AccessibilityNodeMapper {
       }
       taken.insert(id)
       return mapping.withID(id)
+    }
+  }
+
+  /// Whether `identity` keeps a duplicate-occurrence qualifier, an explicit-ID
+  /// component `ID[<id>#<n>]`. The framework qualifies only later duplicates
+  /// (occurrence 0 is the unqualified form), percent-escapes an authored `#`,
+  /// and strips the qualifier from reported identities; this is the component
+  /// rule of its `Identity.strippingEntityOccurrences`.
+  static func carriesDuplicateOccurrence(_ identity: Identity) -> Bool {
+    identity.components.contains { component in
+      guard component.hasPrefix("ID["), component.hasSuffix("]") else {
+        return false
+      }
+      let interior = component.dropFirst(3).dropLast(1)
+      guard let hashIndex = interior.lastIndex(of: "#") else {
+        return false
+      }
+      let digits = interior[interior.index(after: hashIndex)...]
+      return !digits.isEmpty && digits.allSatisfy(\.isNumber)
     }
   }
 

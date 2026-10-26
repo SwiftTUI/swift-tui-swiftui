@@ -1,5 +1,4 @@
 import CoreGraphics
-import Foundation
 @_spi(Runners) import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
@@ -231,6 +230,15 @@ struct SwiftUIHostAccessibilityTests {
     #expect(overlay.mappings.filter(\.isFocused).map(\.label) == ["Select row 2"])
     let requested = try #require(overlay.requestedNativeFocusID)
     #expect(overlay.mappings.filter { $0.id == requested }.map(\.label) == ["Select row 2"])
+    // STUI-1288 neighbour: a row selector's runtime identity is its row route, which keeps no
+    // occurrence, so the first keeps its path and the second takes its route (w4s08).
+    let nodes = try #require(harness.host.latestSemanticSnapshot?.accessibilityNodes)
+    for label in ["Select row 1", "Select row 2"] {
+      let selector = try #require(nodes.first { $0.role == .button && $0.label == label })
+      let expected =
+        label == "Select row 1" ? selector.identity.path : selector.runtimeFocusIdentity.path
+      #expect(overlay.mappings.first { $0.label == label }?.id == expected, "\(label)")
+    }
   }
 
   // STUI-1256: the overlay presents each node's enabled state. A disabled control and a
@@ -259,6 +267,62 @@ struct SwiftUIHostAccessibilityTests {
       }
       #expect(mapping.isEnabled == node?.isEnabled, "\(mapping.id)")
     }
+  }
+
+  // STUI-1288: an element inside a later duplicate is named by its runtime focus identity,
+  // which keeps the occurrence, whether or not the earlier duplicate is mapped. A button in
+  // the second of two duplicate rows keeps its id when the first row leaves the snapshot
+  // (w4s02).
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func later_duplicate_row_button_keeps_its_overlay_id_when_the_first_row_leaves() async throws {
+    let harness = try RuntimeFocusHarness(app: W4HideFirstRowApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Go")
+    let before = w4Buttons(harness, label: "Go")
+    try #require(before.count == 2)
+    let later = before[1]
+    #expect(later.runtimeFocusIdentity.path.hasSuffix(##"ID["A"#1]/HStack[1]"##))
+    let idBefore = try #require(w3MappingID(harness, for: later))
+    #expect(idBefore == later.runtimeFocusIdentity.path)
+
+    await harness.sendKey(.return) { _, _ in w4Buttons(harness, label: "Go").count == 1 }
+    let remaining = try #require(w4Buttons(harness, label: "Go").first)
+    #expect(remaining.runtimeFocusIdentity == later.runtimeFocusIdentity)
+    #expect(remaining.rect == later.rect)
+    #expect(w3MappingID(harness, for: remaining) == idBefore)
+    let ids = harness.overlay.mappings.map(\.id)
+    #expect(Set(ids).count == ids.count, "\(ids)")
+  }
+
+  // STUI-1288: runtime focus on the second of two duplicates stays requested under one id
+  // while the first leaves the snapshot and returns, and exactly one element carries it. After
+  // the round trip every element has its first frame's id (w4s03).
+  @MainActor
+  @Test(.timeLimit(.minutes(1)))
+  func focus_request_keeps_one_id_while_an_earlier_duplicate_leaves_and_returns() async throws {
+    let harness = try RuntimeFocusHarness(app: W4SecondTogglesFirstApp())
+    defer { harness.stop() }
+
+    await harness.waitForFocus(marker: "Same")
+    await harness.sendKey(.tab) { $0.focusedIdentity != $1.focusedIdentity }
+    let buttons = w3SameButtons(harness)
+    try #require(buttons.count == 2)
+    let second = buttons[1]
+    #expect(harness.focusedIdentity == second.runtimeFocusIdentity)
+    let initialIDs = harness.overlay.mappings.map(\.id)
+    let requested = try #require(harness.overlay.requestedNativeFocusID)
+    #expect(requested == second.runtimeFocusIdentity.path)
+
+    for expectedCount in [1, 2] {
+      await harness.sendKey(.return) { _, _ in w3SameButtons(harness).count == expectedCount }
+      #expect(harness.focusedIdentity == second.runtimeFocusIdentity)
+      let overlay = harness.overlay
+      #expect(overlay.requestedNativeFocusID == requested, "\(expectedCount) duplicates mapped")
+      #expect(overlay.mappings.filter { $0.id == requested }.map(\.label) == ["Same"])
+    }
+    #expect(harness.overlay.mappings.map(\.id) == initialIDs)
   }
 }
 
@@ -672,7 +736,8 @@ private struct HuntMultiSelectionList: View {
 @Suite(.serialized)
 struct Wave3RegressionHuntAccessibilityTests {
   // The second of two duplicates keeps its runtime identity when the first leaves the
-  // snapshot; SwiftUI's ForEach and AccessibilityFocusState identify it by its overlay id.
+  // snapshot; SwiftUI's ForEach and AccessibilityFocusState identify it by its overlay id,
+  // which therefore stays the same (repaired by STUI-1288).
   @MainActor
   @Test(.timeLimit(.minutes(1)))
   func w3ca020_overlay_id_survives_an_earlier_duplicate_leaving() async throws {
@@ -693,11 +758,7 @@ struct Wave3RegressionHuntAccessibilityTests {
     #expect(after.runtimeFocusIdentity == before.runtimeFocusIdentity)
     #expect(after.rect == before.rect)
     let idAfter = try #require(w3MappingID(harness, for: after))
-    w3HuntKnown(
-      "NEW-2: the remaining duplicate's overlay id changes from ...ID[\"Same\"#1] to ...ID[\"Same\"] (the hidden button's former id) although its runtime identity is unchanged; the first mapped duplicate keeps the reported path; contract: SwiftUI ForEach stable identity; adjacent STUI-1256"
-    ) {
-      #expect(idAfter == idBefore, "overlay id \(idBefore) became \(idAfter)")
-    }
+    #expect(idAfter == idBefore, "overlay id \(idBefore) became \(idAfter)")
   }
 
   @MainActor
@@ -791,15 +852,6 @@ struct Wave3RegressionHuntAccessibilityTests {
       #expect(isEnabled("Select row 2") == false, "\(name)")
       #expect(isEnabled("Select row 3") == true, "\(name)")
     }
-  }
-}
-
-/// Preserve an unmarked reproduction while guarding only confirmed assertions.
-private func w3HuntKnown(_ comment: Comment, _ body: () -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_W3HUNT_UNMARKED"] == "1" {
-    body()
-  } else {
-    withKnownIssue(comment) { body() }
   }
 }
 
@@ -942,6 +994,67 @@ private struct W3DisabledTaggedList: View {
           Text("item\(index)").tag(index).disabled(index == 2)
           Text("x")
         }
+      }
+    }
+  }
+}
+
+@MainActor
+private func w4Buttons(_ harness: RuntimeFocusHarness, label: String) -> [AccessibilityNode] {
+  (harness.host.latestSemanticSnapshot?.accessibilityNodes ?? []).filter {
+    $0.role == .button && $0.label == label && !$0.hidden
+  }
+}
+
+@MainActor
+private struct W4HideFirstRowApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      W4HideFirstRow()
+    }
+  }
+}
+
+private struct W4HideFirstRow: View {
+  @State private var hideFirst = false
+  private let items = [W3Duplicate(label: "A", index: 0), W3Duplicate(label: "A", index: 1)]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Button("Toggle") { hideFirst.toggle() }
+      ForEach(items, id: \.label) { item in
+        HStack(spacing: 1) {
+          Text(item.label)
+          Button("Go") {}
+        }
+        .accessibilityHidden(hideFirst && item.index == 0)
+      }
+    }
+  }
+}
+
+@MainActor
+private struct W4SecondTogglesFirstApp: SwiftTUIRuntime.App {
+  var body: some SwiftTUIRuntime.Scene {
+    WindowGroup("Main", id: "main") {
+      W4SecondTogglesFirst()
+    }
+  }
+}
+
+/// Two duplicate buttons; activating the second hides or shows the first, so runtime focus
+/// stays on the second across both updates.
+private struct W4SecondTogglesFirst: View {
+  @State private var hideFirst = false
+  private let items = [W3Duplicate(label: "Same", index: 0), W3Duplicate(label: "Same", index: 1)]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      ForEach(items, id: \.label) { item in
+        Button(item.label) {
+          if item.index == 1 { hideFirst.toggle() }
+        }
+        .accessibilityHidden(hideFirst && item.index == 0)
       }
     }
   }
