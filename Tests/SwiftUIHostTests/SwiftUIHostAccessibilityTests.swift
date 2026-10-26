@@ -230,8 +230,9 @@ struct SwiftUIHostAccessibilityTests {
     #expect(overlay.mappings.filter(\.isFocused).map(\.label) == ["Select row 2"])
     let requested = try #require(overlay.requestedNativeFocusID)
     #expect(overlay.mappings.filter { $0.id == requested }.map(\.label) == ["Select row 2"])
-    // STUI-1288 neighbour: a row selector's runtime identity is its row route, which keeps no
-    // occurrence, so the first keeps its path and the second takes its route (w4s08).
+    // STUI-1288 neighbour: a row selector's runtime identity is its row route. From 0.19.5 a
+    // later duplicate's route carries its own occurrence (STUI-1296), so the first keeps its
+    // path and the second takes its route (w4s08).
     let nodes = try #require(harness.host.latestSemanticSnapshot?.accessibilityNodes)
     for label in ["Select row 1", "Select row 2"] {
       let selector = try #require(nodes.first { $0.role == .button && $0.label == label })
