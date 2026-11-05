@@ -1,5 +1,5 @@
 import CoreGraphics
-@_spi(Runners) import SwiftTUIRuntime
+import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 
@@ -197,14 +197,14 @@ struct SwiftUIHostAccessibilityTests {
     let buttons = nodes.filter { $0.role == .button && $0.label == "Same" }
     try #require(buttons.count == 2)
     #expect(buttons[0].identity == buttons[1].identity)
-    #expect(buttons[1].runtimeFocusIdentity.path.hasSuffix(##"ID["Same"#1]"##))
-    #expect(harness.focusedIdentity == buttons[0].runtimeFocusIdentity)
+    #expect(buttons[1].hostFocusIdentity.path.hasSuffix(##"ID["Same"#1]"##))
+    #expect(harness.focusedIdentity == buttons[0].hostFocusIdentity)
 
     let overlay = harness.overlay
     let ids = overlay.mappings.map(\.id)
     #expect(Set(ids).count == ids.count, "\(ids)")
     let buttonIDs = overlay.mappings.filter { $0.role == .button && $0.label == "Same" }.map(\.id)
-    #expect(buttonIDs == [buttons[0].identity.path, buttons[1].runtimeFocusIdentity.path])
+    #expect(buttonIDs == [buttons[0].identity.path, buttons[1].hostFocusIdentity.path])
     let duplicatedPath = buttons[0].identity.path
     #expect(
       overlay.mappings.filter { $0.identity.path != duplicatedPath }.allSatisfy {
@@ -237,7 +237,7 @@ struct SwiftUIHostAccessibilityTests {
     for label in ["Select row 1", "Select row 2"] {
       let selector = try #require(nodes.first { $0.role == .button && $0.label == label })
       let expected =
-        label == "Select row 1" ? selector.identity.path : selector.runtimeFocusIdentity.path
+        label == "Select row 1" ? selector.identity.path : selector.hostFocusIdentity.path
       #expect(overlay.mappings.first { $0.label == label }?.id == expected, "\(label)")
     }
   }
@@ -284,13 +284,13 @@ struct SwiftUIHostAccessibilityTests {
     let before = w4Buttons(harness, label: "Go")
     try #require(before.count == 2)
     let later = before[1]
-    #expect(later.runtimeFocusIdentity.path.hasSuffix(##"ID["A"#1]/HStack[1]"##))
+    #expect(later.hostFocusIdentity.path.hasSuffix(##"ID["A"#1]/HStack[1]"##))
     let idBefore = try #require(w3MappingID(harness, for: later))
-    #expect(idBefore == later.runtimeFocusIdentity.path)
+    #expect(idBefore == later.hostFocusIdentity.path)
 
     await harness.sendKey(.return) { _, _ in w4Buttons(harness, label: "Go").count == 1 }
     let remaining = try #require(w4Buttons(harness, label: "Go").first)
-    #expect(remaining.runtimeFocusIdentity == later.runtimeFocusIdentity)
+    #expect(remaining.hostFocusIdentity == later.hostFocusIdentity)
     #expect(remaining.rect == later.rect)
     #expect(w3MappingID(harness, for: remaining) == idBefore)
     let ids = harness.overlay.mappings.map(\.id)
@@ -311,14 +311,14 @@ struct SwiftUIHostAccessibilityTests {
     let buttons = w3SameButtons(harness)
     try #require(buttons.count == 2)
     let second = buttons[1]
-    #expect(harness.focusedIdentity == second.runtimeFocusIdentity)
+    #expect(harness.focusedIdentity == second.hostFocusIdentity)
     let initialIDs = harness.overlay.mappings.map(\.id)
     let requested = try #require(harness.overlay.requestedNativeFocusID)
-    #expect(requested == second.runtimeFocusIdentity.path)
+    #expect(requested == second.hostFocusIdentity.path)
 
     for expectedCount in [1, 2] {
       await harness.sendKey(.return) { _, _ in w3SameButtons(harness).count == expectedCount }
-      #expect(harness.focusedIdentity == second.runtimeFocusIdentity)
+      #expect(harness.focusedIdentity == second.hostFocusIdentity)
       let overlay = harness.overlay
       #expect(overlay.requestedNativeFocusID == requested, "\(expectedCount) duplicates mapped")
       #expect(overlay.mappings.filter { $0.id == requested }.map(\.label) == ["Same"])
@@ -747,16 +747,16 @@ struct Wave3RegressionHuntAccessibilityTests {
 
     await harness.waitForFocus(marker: "Same")
     let toggle = try #require(harness.node(role: .button, label: "Toggle"))
-    #expect(harness.focusedIdentity == toggle.runtimeFocusIdentity)
+    #expect(harness.focusedIdentity == toggle.hostFocusIdentity)
     let before = try #require(w3SameButtons(harness).last)
     try #require(w3SameButtons(harness).count == 2)
-    #expect(before.runtimeFocusIdentity.path.hasSuffix(##"ID["Same"#1]"##))
+    #expect(before.hostFocusIdentity.path.hasSuffix(##"ID["Same"#1]"##))
     let idBefore = try #require(w3MappingID(harness, for: before))
 
     await harness.sendKey(.return) { _, _ in w3SameButtons(harness).count == 1 }
     let after = try #require(w3SameButtons(harness).first)
     // The same runtime element: its identity and frame are unchanged.
-    #expect(after.runtimeFocusIdentity == before.runtimeFocusIdentity)
+    #expect(after.hostFocusIdentity == before.hostFocusIdentity)
     #expect(after.rect == before.rect)
     let idAfter = try #require(w3MappingID(harness, for: after))
     #expect(idAfter == idBefore, "overlay id \(idBefore) became \(idAfter)")
@@ -775,13 +775,13 @@ struct Wave3RegressionHuntAccessibilityTests {
     let buttons = w3SameButtons(harness)
     try #require(buttons.count == 3)
     let third = buttons[2]
-    #expect(third.runtimeFocusIdentity.path.hasSuffix(##"ID["Same"#2]"##))
-    #expect(harness.focusedIdentity == third.runtimeFocusIdentity)
+    #expect(third.hostFocusIdentity.path.hasSuffix(##"ID["Same"#2]"##))
+    #expect(harness.focusedIdentity == third.hostFocusIdentity)
     let overlay = harness.overlay
     let ids = overlay.mappings.map(\.id)
     #expect(Set(ids).count == ids.count, "\(ids)")
     let requested = try #require(overlay.requestedNativeFocusID)
-    #expect(ids.filter { $0 == requested } == [third.runtimeFocusIdentity.path])
+    #expect(ids.filter { $0 == requested } == [third.hostFocusIdentity.path])
   }
 
   @MainActor
@@ -796,7 +796,7 @@ struct Wave3RegressionHuntAccessibilityTests {
     let goButtons = nodes.filter { $0.role == .button && $0.label == "Go" }
     try #require(goButtons.count == 2)
     #expect(goButtons[0].identity == goButtons[1].identity)
-    #expect(harness.focusedIdentity == goButtons[1].runtimeFocusIdentity)
+    #expect(harness.focusedIdentity == goButtons[1].hostFocusIdentity)
     let overlay = harness.overlay
     let ids = overlay.mappings.map(\.id)
     #expect(Set(ids).count == ids.count, "\(ids)")

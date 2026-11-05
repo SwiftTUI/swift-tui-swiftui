@@ -52,18 +52,23 @@ SPI, so file replacement is correct even against the released runtime's older
 path-keyed cache. No pre-tag API is required by this package's default build.
 The damage clip prevents translucent replay from changing untouched pixels.
 
-## The lockstep `@_spi` contract
+## Native Swift source contract
 
-The host uses the runtime's internal scene and raster surfaces through
-`@_spi(Runners)` imports of the `SwiftTUIRuntime` product. That surface is
-tracked upstream by `swift-tui`'s `.spi-api-baseline.txt`; an SPI break there
-creates a reviewable diff instead of a silent downstream failure here.
+Production rendering and accessibility code use the bounded
+`FrameworkHostContract` adapter. For the exact tagged 0.20.1 dependency, that
+adapter imports the legacy Runners SPI in one file. The candidate profile uses
+Host SPI for typed occurrence/presentation identity and owned image payloads;
+it does not parse an identity's rendered path. Hosted-frame waiters are isolated
+in the test adapter and use Testing SPI under the candidate profile.
 
-Because `@_spi` surfaces carry no semver guarantee, this package and
-`swift-tui` are released and consumed in **lockstep**: consumers pin both
-packages to the same tag with `exact:`. The org coordination root's
-`swiftui_pretag_native_gate` builds this package against the pre-tag
-framework before every release to keep the contract honest.
+The framework publishes `swifttui.swift-host/1` in its public `Contracts/1`
+kit. Its compiler-derived inventory records signatures, actor requirements,
+conformances and default witnesses as well as symbol names. The org's temporary
+candidate manifest defines `SWIFTTUI_HOST_CONTRACT_V1` only when selecting that
+profile. This repository's committed manifest remains an exact tagged HTTPS
+dependency and builds with native tools alone. Both the released adapter and
+candidate profile have native tests; the coordinated lockstep release policy
+remains unchanged.
 
 ## Consumer surface
 

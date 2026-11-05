@@ -1,8 +1,6 @@
 import CoreGraphics
 import Foundation
-// Image blend compositing for hosted raster surfaces is exposed by
-// `SwiftTUIRuntime` through the `Runners` host-integration SPI.
-@_spi(Runners) import SwiftTUIRuntime
+import SwiftTUIRuntime
 
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
   import AppKit

@@ -2,7 +2,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
-@_spi(Runners) import SwiftTUIRuntime
+import SwiftTUIRuntime
 
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
   import AppKit
@@ -64,7 +64,7 @@ final class NativeImageCache {
 
   private let sources: NativeImageLRU<SourceKey, Content>
   private let decoded: NativeImageLRU<DecodedKey, CGImage>
-  private var compositor: ImageBlendCompositor?
+  private var compositor: HostImageCompositor?
   private(set) var fileReads = 0
   private(set) var decodeCount = 0
 
@@ -136,7 +136,7 @@ final class NativeImageCache {
     let bytes: [UInt8]
     let bounds: CellRect
     if attachment.compositing != nil {
-      if compositor == nil { compositor = ImageBlendCompositor() }
+      if compositor == nil { compositor = HostImageCompositor() }
       // Pass the captured version through the existing SPI. In particular, an
       // older framework's path-keyed blend cache cannot hide a replaced file.
       var captured = attachment

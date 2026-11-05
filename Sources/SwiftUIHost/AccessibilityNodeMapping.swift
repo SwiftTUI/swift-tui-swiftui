@@ -1,5 +1,5 @@
 import CoreGraphics
-@_spi(Runners) import SwiftTUIRuntime
+import SwiftTUIRuntime
 import SwiftUI
 
 struct AccessibilityNodeMapping: Equatable {
@@ -110,9 +110,7 @@ enum AccessibilityNodeMapper {
     _ mapped: [(node: AccessibilityNode, mapping: AccessibilityNodeMapping)]
   ) -> [AccessibilityNodeMapping] {
     let named = mapped.map { node, mapping in
-      let runtimeIdentity = node.runtimeFocusIdentity
-      return runtimeIdentity != node.identity && carriesDuplicateOccurrence(runtimeIdentity)
-        ? mapping.withID(runtimeIdentity.path) : mapping
+      mapping.withID(node.hostPresentationIdentity.path)
     }
     let names = Set(named.map(\.id))
     guard names.count < named.count else {
@@ -128,7 +126,7 @@ enum AccessibilityNodeMapper {
         return mapping
       }
 
-      var id = entry.node.runtimeFocusIdentity.path
+      var id = entry.node.hostFocusIdentity.path
       var ordinal = occurrence
       while taken.contains(id) {
         id = "\(mapping.id)#\(ordinal)"
@@ -145,17 +143,7 @@ enum AccessibilityNodeMapper {
   /// and strips the qualifier from reported identities; this is the component
   /// rule of its `Identity.strippingEntityOccurrences`.
   static func carriesDuplicateOccurrence(_ identity: Identity) -> Bool {
-    identity.components.contains { component in
-      guard component.hasPrefix("ID["), component.hasSuffix("]") else {
-        return false
-      }
-      let interior = component.dropFirst(3).dropLast(1)
-      guard let hashIndex = interior.lastIndex(of: "#") else {
-        return false
-      }
-      let digits = interior[interior.index(after: hashIndex)...]
-      return !digits.isEmpty && digits.allSatisfy(\.isNumber)
-    }
+    FrameworkHostContract.hasOccurrence(identity)
   }
 
   static func mapping(
@@ -179,7 +167,7 @@ enum AccessibilityNodeMapper {
       hint: node.hint,
       traits: roleMapping.traits,
       controlKind: roleMapping.controlKind,
-      isFocused: node.runtimeFocusIdentity == focusedIdentity,
+      isFocused: node.hostFocusIdentity == focusedIdentity,
       liveRegion: node.liveRegion,
       isEnabled: node.isEnabled
     )

@@ -1,4 +1,4 @@
-@_spi(Runners) import SwiftTUIRuntime
+import SwiftTUIRuntime
 import Testing
 
 @testable import SwiftUIHost
@@ -21,13 +21,13 @@ struct HostedSurfaceRegressionTests {
       session.stop()
     }
 
-    let initial = await surface.waitForSurface { surface in
+    let initial = await surface.contractWaitForSurface { surface in
       surface.renderedText.contains("Press")
     }
 
     session.send(.mouse(.init(kind: .down(.primary), location: .init(x: 1, y: 0))))
 
-    let pressed = await surface.waitForSurface { surface in
+    let pressed = await surface.contractWaitForSurface { surface in
       surface != initial && surface.renderedText.contains("Press")
     }
 
@@ -54,14 +54,14 @@ struct HostedSurfaceRegressionTests {
       session.stop()
     }
 
-    let initial = await surface.waitForSurface { surface in
+    let initial = await surface.contractWaitForSurface { surface in
       surface.renderedText.contains("Row 0")
         && surface.renderedText.contains("Row 1")
     }
 
     session.send(.mouse(.init(kind: .scrolled(deltaX: 0, deltaY: 3), location: .init(x: 1, y: 1))))
 
-    let scrolled = await surface.waitForSurface { surface in
+    let scrolled = await surface.contractWaitForSurface { surface in
       surface != initial
         && !surface.renderedText.contains("Row 0")
         && surface.renderedText.contains("Row 3")
@@ -88,14 +88,14 @@ struct HostedSurfaceRegressionTests {
       session.stop()
     }
 
-    _ = await surface.waitForSurface { surface in
+    _ = await surface.contractWaitForSurface { surface in
       surface.markerColumn == 0
     }
 
     session.send(.mouse(.init(kind: .down(.primary), location: .init(x: 1, y: 0))))
     session.send(.mouse(.init(kind: .up(.primary), location: .init(x: 1, y: 0))))
 
-    let frames: [SemanticHostFrame] = await surface.waitForFrames { frames in
+    let frames: [SemanticHostFrame] = await surface.contractWaitForFrames { frames in
       let markerColumns = Set(frames.compactMap(\.raster.markerColumn))
       return markerColumns.count >= 3 && Set([0, 8]).isSubset(of: markerColumns)
     }
@@ -115,7 +115,7 @@ struct HostedSurfaceRegressionTests {
     let surface = hostedSurface()
     let damage = PresentationDamage(textRows: [.init(row: 0, columnRanges: [1..<2])])
 
-    try surface.present(
+    try surface.contractPresent(
       SemanticHostFrame(
         sequence: 2,
         raster: RasterSurface(size: .init(width: 3, height: 1), lines: ["ABC"]),
@@ -123,7 +123,7 @@ struct HostedSurfaceRegressionTests {
         focusedIdentity: nil
       )
     )
-    try surface.present(
+    try surface.contractPresent(
       SemanticHostFrame(
         sequence: 3,
         raster: RasterSurface(size: .init(width: 3, height: 1), lines: ["AXC"]),
@@ -133,7 +133,7 @@ struct HostedSurfaceRegressionTests {
       )
     )
 
-    let frame = await surface.waitForFrame { $0.sequence == 3 }
+    let frame = await surface.contractWaitForFrame { $0.sequence == 3 }
     #expect(frame.rasterDamage == damage)
   }
 
@@ -156,7 +156,7 @@ struct HostedSurfaceRegressionTests {
       session.stop()
     }
 
-    let frame = await surface.waitForFrame { frame in
+    let frame = await surface.contractWaitForFrame { frame in
       frame.raster.renderedText.contains("Natural")
     }
 
@@ -182,7 +182,7 @@ struct HostedSurfaceRegressionTests {
       session.stop()
     }
 
-    _ = await surface.waitForSurface { surface in
+    _ = await surface.contractWaitForSurface { surface in
       surface.renderedText.contains("drag idle")
     }
 
@@ -212,7 +212,7 @@ struct HostedSurfaceRegressionTests {
       )
     )
 
-    _ = await surface.waitForSurface { surface in
+    _ = await surface.contractWaitForSurface { surface in
       surface.renderedText.contains("drag 175:50")
     }
 
