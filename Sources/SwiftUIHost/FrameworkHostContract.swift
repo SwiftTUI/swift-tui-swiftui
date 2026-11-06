@@ -1,9 +1,18 @@
 #if SWIFTTUI_HOST_CONTRACT_V1
   @_spi(Host) import SwiftTUIRuntime
+
+  @MainActor
+  func installNativeClipboardReader(on surface: HostedRasterSurface) {
+    surface.setClipboardReader(NativeClipboard.read)
+  }
 #else
   // The tagged 0.20.1 floor predates Host SPI. Keep its adapter bounded here;
   // the rendering and accessibility implementations consume the values below.
   @_spi(Runners) import SwiftTUIRuntime
+
+  // The released 0.20.1 surface only supports clipboard writes.
+  @MainActor
+  func installNativeClipboardReader(on _: HostedRasterSurface) {}
 #endif
 
 extension AccessibilityNode {

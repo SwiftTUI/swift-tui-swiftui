@@ -63,6 +63,7 @@ public final class SwiftUIHostSceneHost {
       },
       onClipboardWrite: clipboardWriter ?? NativeClipboard.write
     )
+    installNativeClipboardReader(on: surface)
     let session = try HostedSceneSession(
       for: app,
       sceneID: descriptor.id,

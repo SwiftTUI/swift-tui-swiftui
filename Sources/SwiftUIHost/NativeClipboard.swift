@@ -6,6 +6,17 @@
 
 enum NativeClipboard {
   @MainActor
+  static func read() -> String? {
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+      NSPasteboard.general.string(forType: .string)
+    #elseif canImport(UIKit)
+      UIPasteboard.general.string
+    #else
+      nil
+    #endif
+  }
+
+  @MainActor
   static func write(
     _ text: String
   ) -> Bool {
