@@ -54,21 +54,18 @@ The damage clip prevents translucent replay from changing untouched pixels.
 
 ## Native Swift source contract
 
-Production rendering and accessibility code use the bounded
-`FrameworkHostContract` adapter. For the exact tagged 0.20.1 dependency, that
-adapter imports the legacy Runners SPI in one file. The candidate profile uses
-Host SPI for typed occurrence/presentation identity and owned image payloads;
-it does not parse an identity's rendered path. Hosted-frame waiters are isolated
-in the test adapter and use Testing SPI under the candidate profile.
+Production rendering and accessibility use the supported Host SPI in
+`swifttui.swift-host/1`: typed occurrence/presentation identity and owned image
+payloads. The raster surface reads the current native clipboard on demand for
+focused paste commands. The host does not parse identity display strings. Hosted-frame waiters
+are isolated in the test adapter and use the supported Testing SPI.
 
-The framework publishes `swifttui.swift-host/1` in its public `Contracts/1`
-kit. Its compiler-derived inventory records signatures, actor requirements,
-conformances and default witnesses as well as symbol names. The org's temporary
-candidate manifest defines `SWIFTTUI_HOST_CONTRACT_V1` only when selecting that
-profile. This repository's committed manifest remains an exact tagged HTTPS
-dependency and builds with native tools alone. Both the released adapter and
-candidate profile have native tests; the coordinated lockstep release policy
-remains unchanged.
+The framework's public `Contracts/1` kit records supported signatures, actor
+requirements, conformances and default witnesses. The native manifest selects
+framework `>= 0.21.0` and `< 0.22.0`. Both packages version independently and build
+with native tools. Outgoing `@_spi(Raster)` capture/diagnostic tooling remains
+experimental and requires an exact tested package selection; it is not needed
+for ordinary application embedding.
 
 ## Consumer surface
 

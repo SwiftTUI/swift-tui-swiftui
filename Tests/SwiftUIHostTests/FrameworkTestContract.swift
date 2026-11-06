@@ -1,10 +1,4 @@
-#if SWIFTTUI_HOST_CONTRACT_V1
-  @_spi(Host) @_spi(Testing) import SwiftTUIRuntime
-#else
-  // The exact tagged dependency exposes these test operations under Runners.
-  // Candidate qualification selects the separate Host and Testing contracts.
-  @_spi(Runners) import SwiftTUIRuntime
-#endif
+@_spi(Host) @_spi(Testing) import SwiftTUIRuntime
 
 extension HostedRasterSurface {
   func contractWaitForSurface(

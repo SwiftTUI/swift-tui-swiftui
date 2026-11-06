@@ -1,48 +1,21 @@
-#if SWIFTTUI_HOST_CONTRACT_V1
-  @_spi(Host) import SwiftTUIRuntime
+@_spi(Host) import SwiftTUIRuntime
 
-  @MainActor
-  func installNativeClipboardReader(on surface: HostedRasterSurface) {
-    surface.setClipboardReader(NativeClipboard.read)
-  }
-#else
-  // The tagged 0.20.1 floor predates Host SPI. Keep its adapter bounded here;
-  // the rendering and accessibility implementations consume the values below.
-  @_spi(Runners) import SwiftTUIRuntime
-
-  // The released 0.20.1 surface only supports clipboard writes.
-  @MainActor
-  func installNativeClipboardReader(on _: HostedRasterSurface) {}
-#endif
+@MainActor
+func installNativeClipboardReader(on surface: HostedRasterSurface) {
+  surface.setClipboardReader(NativeClipboard.read)
+}
 
 extension AccessibilityNode {
   var hostFocusIdentity: Identity { runtimeFocusIdentity }
 
   var hostPresentationIdentity: Identity {
-    #if SWIFTTUI_HOST_CONTRACT_V1
-      presentationIdentity
-    #else
-      let focus = runtimeFocusIdentity
-      return focus != identity && FrameworkHostContract.hasOccurrence(focus) ? focus : identity
-    #endif
+    presentationIdentity
   }
 }
 
 enum FrameworkHostContract {
   static func hasOccurrence(_ identity: Identity) -> Bool {
-    #if SWIFTTUI_HOST_CONTRACT_V1
-      identity.hasPresentationOccurrence
-    #else
-      // Released framework compatibility only. New hosts use the typed query;
-      // rendered identity strings are not part of the Host profile's grammar.
-      identity.components.contains { component in
-        guard component.hasPrefix("ID["), component.hasSuffix("]") else { return false }
-        let interior = component.dropFirst(3).dropLast(1)
-        guard let marker = interior.lastIndex(of: "#") else { return false }
-        let digits = interior[interior.index(after: marker)...]
-        return !digits.isEmpty && digits.allSatisfy(\.isNumber)
-      }
-    #endif
+    identity.hasPresentationOccurrence
   }
 }
 

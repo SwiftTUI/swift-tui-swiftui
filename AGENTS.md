@@ -25,9 +25,9 @@ Do not run builds or tests with bare `swift` or `xcrun swift` — use
 ## Rules
 
 - This package consumes `swift-tui`'s `SwiftTUIRuntime` product through a
-  public, tagged HTTPS dependency pinned `exact:` — see
-  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the lockstep `@_spi`
-  contract. Never introduce a path dependency; pre-tag integration happens in
+  public, tagged HTTPS dependency bounded to its supported minor line — see
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for supported Host/Testing SPI
+  and experimental Raster tooling. Never introduce a path dependency; pre-tag integration happens in
   the SwiftTUI org coordination root.
 - Planning and proposal documents live in the SwiftTUI org coordination root,
   not here. `docs/` describes `HEAD` only.

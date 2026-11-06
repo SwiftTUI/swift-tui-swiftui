@@ -85,15 +85,14 @@ drawing APIs. See [architecture](docs/ARCHITECTURE.md) for cache and damage rule
 ## Installation
 
 Add both `swift-tui` (the framework and your views) and `swift-tui-swiftui` (the
-host). Pin both to the **same** tag with `exact:`. The host uses the runtime's
-internal scene and raster surfaces. Thus, the two packages are released and
-consumed in lockstep.
+host). Each package has its own version. Use the supported minor-line ranges
+below; the host consumes the framework's public hosting API and ratified Host SPI.
 
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.20.1"),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.20.1"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMinor(from: "0.21.0")),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMinor(from: "0.21.0")),
 ],
 targets: [
   .executableTarget(
@@ -176,3 +175,8 @@ The semantic accessibility overlay excludes hidden nodes. Live and imperative
 announcements preserve Unicode text, normalize control characters to spaces,
 and omit hidden live regions. This presentation behavior does not establish
 VoiceOver action support or a completed assistive-technology acceptance journey.
+
+## Version compatibility
+
+See the [compatibility policy](docs/COMPATIBILITY.md) for supported minor lines,
+independent dependency adoption, and experimental interfaces.
