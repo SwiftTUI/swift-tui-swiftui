@@ -26,3 +26,9 @@ SwiftUIHost accepts framework 0.21.x. Production rendering uses the supported
 Host SPI for occurrence identity and owned image payloads. Hosted-frame waiters
 use the Testing SPI in tests. Experimental Raster capture tooling still needs
 an exact tested selection; ordinary SwiftUI embedding does not depend on it.
+
+The scene ID used by `SwiftUIHostSceneDescriptor` and `SwiftUIHostAppState`
+now comes from SwiftTUIPrimitives. Existing callers can keep importing
+SwiftTUIRuntime and using `SwiftTUIRuntime.WindowIdentifier`. Its runtime
+typealias names the same type. Rebuild clients with the new package versions
+because the module name in the compiled scene API symbols changed.
