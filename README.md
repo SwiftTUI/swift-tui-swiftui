@@ -85,14 +85,14 @@ drawing APIs. See [architecture](docs/ARCHITECTURE.md) for cache and damage rule
 ## Installation
 
 Add both `swift-tui` (the framework and your views) and `swift-tui-swiftui` (the
-host). Each package has its own version. Use the supported minor-line ranges
+host). Each package has its own version. Use the supported major-line ranges
 below; the host consumes the framework's public hosting API and ratified Host SPI.
 
 ```swift
 // Package.swift
 dependencies: [
-  .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMinor(from: "0.21.0")),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMinor(from: "0.21.0")),
+  .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMajor(from: "0.21.0")),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMajor(from: "0.21.0")),
 ],
 targets: [
   .executableTarget(
@@ -178,5 +178,5 @@ VoiceOver action support or a completed assistive-technology acceptance journey.
 
 ## Version compatibility
 
-See the [compatibility policy](docs/COMPATIBILITY.md) for supported minor lines,
+See the [compatibility policy](docs/COMPATIBILITY.md) for supported major lines,
 independent dependency adoption, and experimental interfaces.

@@ -6,5 +6,5 @@ catalog at `Sources/SwiftUIHost/SwiftUIHost.docc`.
 
 | Document | What it covers |
 | --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The host boundary: what the package wraps, the lockstep `@_spi(Runners)` contract, and why releases pin `exact:`. |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The host boundary, ratified Host/Testing SPI contracts, and experimental Raster tooling. |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Toolchain, gate, and release notes. |

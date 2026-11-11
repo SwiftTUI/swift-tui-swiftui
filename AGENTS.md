@@ -25,7 +25,7 @@ Do not run builds or tests with bare `swift` or `xcrun swift` — use
 ## Rules
 
 - This package consumes `swift-tui`'s `SwiftTUIRuntime` product through a
-  public, tagged HTTPS dependency bounded to its supported minor line — see
+  public, tagged HTTPS dependency bounded to its supported major line — see
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for supported Host/Testing SPI
   and experimental Raster tooling. Never introduce a path dependency; pre-tag integration happens in
   the SwiftTUI org coordination root.
