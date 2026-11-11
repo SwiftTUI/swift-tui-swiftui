@@ -33,15 +33,15 @@ app declares no scenes, so handle that failure properly outside of samples.
 ## Install
 
 Add both `swift-tui` (the framework and your views) and `swift-tui-swiftui`
-(the host). Pin both to the **same** tag with `exact:` — the host uses the
-runtime's internal scene and raster surfaces, so the two packages are
-released and consumed in lockstep.
+(the host). Each package versions independently. Use the compatible ranges
+below; the host consumes the framework's supported hosting API and ratified
+Host SPI. Breaking changes require the next major release.
 
 ```swift
 // Package.swift
 dependencies: [
   .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMajor(from: "0.21.0")),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.21.0"),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMajor(from: "0.21.0")),
 ],
 targets: [
   .executableTarget(

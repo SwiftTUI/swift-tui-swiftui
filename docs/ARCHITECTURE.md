@@ -62,7 +62,7 @@ are isolated in the test adapter and use the supported Testing SPI.
 
 The framework's public `Contracts/1` kit records supported signatures, actor
 requirements, conformances and default witnesses. The native manifest selects
-framework `>= 0.21.0` and `< 0.22.0`. Both packages version independently and build
+framework `>= 0.21.0` and `< 1.0.0`. Both packages version independently and build
 with native tools. Outgoing `@_spi(Raster)` capture/diagnostic tooling remains
 experimental and requires an exact tested package selection; it is not needed
 for ordinary application embedding.
