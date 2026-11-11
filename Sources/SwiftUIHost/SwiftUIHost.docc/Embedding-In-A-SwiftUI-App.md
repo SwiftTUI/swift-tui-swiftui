@@ -41,7 +41,7 @@ Host SPI. Breaking changes require the next major release.
 // Package.swift
 dependencies: [
   .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMajor(from: "0.21.0")),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMajor(from: "0.21.0")),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMajor(from: "0.22.0")),
 ],
 targets: [
   .executableTarget(

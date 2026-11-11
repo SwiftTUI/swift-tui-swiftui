@@ -92,7 +92,7 @@ below; the host consumes the framework's public hosting API and ratified Host SP
 // Package.swift
 dependencies: [
   .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMajor(from: "0.21.0")),
-  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMajor(from: "0.21.0")),
+  .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", .upToNextMajor(from: "0.22.0")),
 ],
 targets: [
   .executableTarget(
