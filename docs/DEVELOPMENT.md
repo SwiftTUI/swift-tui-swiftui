@@ -19,6 +19,8 @@ has landed since its last green run), on every release tag, and on
 
 ## Releases
 
-Versions are lockstep with the SwiftTUI org. The org coordination root owns
-the release sequence, pin checks, and the pre-tag `@_spi` contract gate. Do
-not tag from this repository outside that process.
+SwiftUIHost versions independently. Its supported Host and Testing SPI
+dependencies accept compatible framework releases up to the next major. The
+org coordination root owns component release qualification, pin checks and
+the pre-tag SPI contract gate. Do not tag outside that process. See
+[COMPATIBILITY.md](COMPATIBILITY.md) for the supported contract boundary.
